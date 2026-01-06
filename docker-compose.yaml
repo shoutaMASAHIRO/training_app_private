@@ -1,0 +1,42 @@
+services:
+  dynamodb:
+    image: amazon/dynamodb-local
+    container_name: dynamodb
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb_data:/home/dynamodblocal/data
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
+    working_dir: /home/dynamodblocal
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: development
+      AWS_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: "dummy"
+      AWS_SECRET_ACCESS_KEY: "dummy"
+      DYNAMODB_ENDPOINT: "http://dynamodb:8000"
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+    command: ["npm", "start"]
+    depends_on:
+      - dynamodb
+
+  fitness_app_frontend:
+    build:
+      context: ./fitness_app
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend_node_modules:
+  dynamodb_data:
