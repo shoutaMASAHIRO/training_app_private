@@ -104,14 +104,35 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                // Username Field
-                TextField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    hintText: 'Username',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                  keyboardType: TextInputType.text,
+                // Username Field with Autocomplete
+                Autocomplete<String>(
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text == '') {
+                      return const Iterable<String>.empty();
+                    }
+                    const options = ['user1@example.com', 'user2@example.com', 'testuser'];
+                    return options.where((String option) {
+                      return option.contains(textEditingValue.text.toLowerCase());
+                    });
+                  },
+                  onSelected: (String selection) {
+                    _usernameController.text = selection;
+                  },
+                  fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController,
+                      FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
+                    // This is a bit of a hack to make the field controller work with the state's controller
+                    // We are not using fieldTextEditingController, but _usernameController
+                    // This could be improved by passing the controller in a better way
+                    return TextField(
+                      controller: _usernameController,
+                      focusNode: fieldFocusNode,
+                      decoration: const InputDecoration(
+                        hintText: 'Username',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      keyboardType: TextInputType.text,
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 

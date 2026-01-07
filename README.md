@@ -42,6 +42,6 @@ docker-compose up --build
 
 コマンドが完了し、サービスが実行されたら、Webブラウザを開いて以下のURLにアクセスしてください。
 
-**http://localhost**
+**http://localhost:8080**
 
 これで、アプリケーションのログイン画面が表示されるはずです。
