@@ -1,138 +1,149 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
-const AWS = require('aws-sdk');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-// Initialize Express app
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
-// Middleware
 app.use(cors());
-app.use(bodyParser.json());
-
-// AWS DynamoDB Configuration
-const { AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DYNAMODB_ENDPOINT } = process.env;
-
-AWS.config.update({
-    region: AWS_REGION,
-    accessKeyId: AWS_ACCESS_KEY_ID,
-    secretAccessKey: AWS_SECRET_ACCESS_KEY,
-    endpoint: DYNAMODB_ENDPOINT
+app.use(express.json());
+app.use((req, _res, next) => {
+  console.log(`[REQ] ${req.method} ${req.url}`);
+  next();
 });
 
-const dynamodb = new AWS.DynamoDB();
-const docClient = new AWS.DynamoDB.DocumentClient();
-const tableName = 'Users';
+// PostgreSQL Pool Configuration
+const pool = new Pool({
+  user: process.env.DB_USER || 'user',
+  host: process.env.DB_HOST || 'postgres',
+  database: process.env.DB_NAME || 'fitness_db',
+  password: process.env.DB_PASSWORD || 'password',
+  port: Number(process.env.DB_PORT || 5432),
+});
 
-// Helper function to create table if it doesn't exist
-const createTable = async () => {
-    const params = {
-        TableName: tableName,
-        KeySchema: [
-            { AttributeName: 'username', KeyType: 'HASH' } // Partition key
-        ],
-        AttributeDefinitions: [
-            { AttributeName: 'username', AttributeType: 'S' }
-        ],
-        ProvisionedThroughput: {
-            ReadCapacityUnits: 5,
-            WriteCapacityUnits: 5
-        }
-    };
-
+// ✅ DB が ready になるまで待つ（ECONNREFUSED対策）
+async function waitForDb(retries = 60, delayMs = 1000) {
+  for (let i = 1; i <= retries; i++) {
     try {
-        const tables = await dynamodb.listTables({}).promise();
-        if (!tables.TableNames.includes(tableName)) {
-            await dynamodb.createTable(params).promise();
-            console.log(`Table '${tableName}' created successfully.`);
-        } else {
-            console.log(`Table '${tableName}' already exists.`);
-        }
+      await pool.query('SELECT 1');
+      console.log('DB is ready.');
+      return;
     } catch (err) {
-        console.error("Error creating table:", err);
+      console.log(`DB not ready (${i}/${retries}) -> ${err.code || err.message}`);
+      await new Promise((r) => setTimeout(r, delayMs));
     }
-};
+  }
+  throw new Error('DB did not become ready in time');
+}
 
-// --- API Endpoints ---
+// users table
+async function createTable() {
+  const createTableQuery = `
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  await pool.query(createTableQuery);
+  console.log("Table 'users' is ready.");
+}
 
-// Register a new user
+// health endpoint
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.code || err.message });
+  }
+});
+
+// Register
 app.post('/register', async (req, res) => {
-    const { username, password } = req.body;
+  const { username, password } = req.body || {};
 
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Username and password are required' });
-    }
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required' });
+  }
 
+  try {
     const hashedPassword = await bcrypt.hash(password, 10);
+    const insertUserQuery =
+      'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id;';
 
-    const params = {
-        TableName: tableName,
-        Item: {
-            username: username,
-            password: hashedPassword
-        },
-        ConditionExpression: 'attribute_not_exists(username)' // Fail if username already exists
-    };
+    await pool.query(insertUserQuery, [username, hashedPassword]);
 
-    try {
-        await docClient.put(params).promise();
-        res.status(201).json({ message: 'User registered successfully' });
-    } catch (err) {
-        if (err.code === 'ConditionalCheckFailedException') {
-            return res.status(409).json({ message: 'Username already exists' });
-        }
-        console.error('Error registering user:', err);
-        res.status(500).json({ message: 'Error registering user' });
+    return res.status(201).json({ message: 'User registered successfully' });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ message: 'Username already exists' });
     }
+    console.error('Error registering user:', err);
+    return res.status(500).json({ message: 'Error registering user' });
+  }
 });
 
-// Login a user
+// Login
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
+  const { username, password } = req.body || {};
 
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Username and password are required' });
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required' });
+  }
+
+  const findUserQuery = 'SELECT * FROM users WHERE username = $1;';
+
+  try {
+    const { rows } = await pool.query(findUserQuery, [username]);
+    const user = rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    const params = {
-        TableName: tableName,
-        Key: {
-            username: username
-        }
-    };
-
-    try {
-        const { Item } = await docClient.get(params).promise();
-
-        if (!Item) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        const isMatch = await bcrypt.compare(password, Item.password);
-
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        // In a real app, you would generate and return a JWT here
-        res.status(200).json({ message: 'Login successful' });
-
-    } catch (err) {
-        console.error('Error logging in user:', err);
-        res.status(500).json({ message: 'Error logging in user' });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
+
+    return res.status(200).json({ message: 'Login successful' });
+  } catch (err) {
+    console.error('Error logging in user:', err);
+    return res.status(500).json({ message: 'Error logging in user' });
+  }
 });
 
-
-// Root endpoint
 app.get('/', (req, res) => {
-    res.send('Backend server is running!');
+  res.send('Backend server is running!');
 });
 
-// Start the server
-app.listen(PORT, async () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+async function startServer() {
+  try {
+    await waitForDb();
     await createTable();
-});
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Startup failed:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
+
+// graceful shutdown
+async function shutdown() {
+  try {
+    console.log('Shutting down...');
+    await pool.end();
+  } finally {
+    process.exit(0);
+  }
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

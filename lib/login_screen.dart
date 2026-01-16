@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,25 +14,68 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  void _login() async {
-    setState(() {
-      _isLoading = true;
-    });
+  // 起動コマンドの --dart-define=API_BASE_URL=... をここで読む
+  static const String apiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
-    // Simulate API call for login
-    await Future.delayed(const Duration(seconds: 2));
+  Future<void> _login() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
 
-    if (_usernameController.text == 'user' && _passwordController.text == 'password') {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
+    if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid credentials')),
+        const SnackBar(content: Text('Username and password are required')),
       );
+      return;
     }
 
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() => _isLoading = true);
+
+    try {
+      if (apiBaseUrl.isEmpty) {
+        throw Exception('API_BASE_URL is empty. Run with --dart-define=API_BASE_URL=...');
+      }
+
+      final uri = Uri.parse('$apiBaseUrl/login');
+
+      final res = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      );
+
+      if (!mounted) return;
+
+      if (res.statusCode == 200) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        // backend は { message: "..." } を返す想定
+        String msg = 'Login failed (${res.statusCode})';
+        try {
+          final decoded = jsonDecode(res.body);
+          if (decoded is Map && decoded['message'] is String) {
+            msg = decoded['message'];
+          }
+        } catch (_) {}
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override

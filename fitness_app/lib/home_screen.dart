@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fitness_app/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,9 +13,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static final List<Widget> _widgetOptions = <Widget>[
     const DashboardScreen(),
-    const Center(child: Text('Workouts Screen', style: TextStyle(fontSize: 24, color: Colors.black87))),
-    const Center(child: Text('Progress Screen', style: TextStyle(fontSize: 24, color: Colors.black87))),
-    const Center(child: Text('Profile Screen', style: TextStyle(fontSize: 24, color: Colors.black87))),
+    const Center(
+      child: Text(
+        'Workouts Screen',
+        style: TextStyle(fontSize: 24, color: Colors.black87),
+      ),
+    ),
+    const Center(
+      child: Text(
+        'Progress Screen',
+        style: TextStyle(fontSize: 24, color: Colors.black87),
+      ),
+    ),
+    const ProfileTab(), // ✅ ProfileScreen ではなく ProfileTab を表示（Scaffold二重回避）
   ];
 
   void _onItemTapped(int index) {
@@ -26,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Welcome Back!'),
@@ -62,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _selectedIndex,
         backgroundColor: Colors.white,
         selectedItemColor: theme.colorScheme.primary,
-        unselectedItemColor: Colors.grey[500],
+        unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
@@ -83,20 +95,44 @@ class DashboardScreen extends StatelessWidget {
         children: [
           const Text(
             'Today\'s Summary',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
           ),
           const SizedBox(height: 16),
           Row(
             children: const [
-              Expanded(child: StatCard(title: 'Calories', value: '1,234', unit: 'kcal', icon: Icons.local_fire_department_rounded, color: Colors.orangeAccent)),
+              Expanded(
+                child: StatCard(
+                  title: 'Calories',
+                  value: '1,234',
+                  unit: 'kcal',
+                  icon: Icons.local_fire_department_rounded,
+                  color: Colors.orangeAccent,
+                ),
+              ),
               SizedBox(width: 16),
-              Expanded(child: StatCard(title: 'Steps', value: '5,678', unit: 'steps', icon: Icons.directions_walk_rounded, color: Colors.lightBlueAccent)),
+              Expanded(
+                child: StatCard(
+                  title: 'Steps',
+                  value: '5,678',
+                  unit: 'steps',
+                  icon: Icons.directions_walk_rounded,
+                  color: Colors.lightBlueAccent,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 24),
           const Text(
             'Your Plan',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
           ),
           const SizedBox(height: 16),
           const ActionCard(
@@ -105,7 +141,7 @@ class DashboardScreen extends StatelessWidget {
             icon: Icons.fitness_center_rounded,
           ),
           const SizedBox(height: 16),
-           const ActionCard(
+          const ActionCard(
             title: 'Cardio Session',
             subtitle: '30 min • 250 kcal',
             icon: Icons.directions_run_rounded,
@@ -123,7 +159,14 @@ class StatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
 
-  const StatCard({super.key, required this.title, required this.value, required this.unit, required this.icon, required this.color});
+  const StatCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.unit,
+    required this.icon,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +183,14 @@ class StatCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(title, style: TextStyle(fontSize: 16, color: Colors.grey[600])),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
           Text(unit, style: TextStyle(fontSize: 14, color: Colors.grey[500])),
         ],
       ),
@@ -153,7 +203,12 @@ class ActionCard extends StatelessWidget {
   final String subtitle;
   final IconData icon;
 
-  const ActionCard({super.key, required this.title, required this.subtitle, required this.icon});
+  const ActionCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -171,9 +226,19 @@ class ActionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
               ],
             ),
           ),

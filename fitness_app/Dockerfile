@@ -24,7 +24,7 @@ RUN test -d web || flutter create . --platforms web
 RUN flutter pub get
 
 # ビルド（wasm dry run回避）
-RUN flutter build web --release --no-wasm-dry-run
+RUN flutter build web --release --pwa-strategy=none --no-wasm-dry-run
 
 FROM nginx:alpine
 COPY --from=builder /app/build/web /usr/share/nginx/html

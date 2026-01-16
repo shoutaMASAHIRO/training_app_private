@@ -1,32 +1,49 @@
+version: "3.9"
+
 services:
-  dynamodb:
-    image: amazon/dynamodb-local
-    container_name: dynamodb
+  postgres:
+    image: postgres:latest
+    container_name: postgres
     ports:
-      - "8000:8000"
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: "fitness_db"
+      POSTGRES_USER: "user"
+      POSTGRES_PASSWORD: "password"
+      PGDATA: /var/lib/postgresql/data
     volumes:
-      - dynamodb_data:/home/dynamodblocal/data
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
-    working_dir: /home/dynamodblocal
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # -U を指定しないと、コンテナ内の実行ユーザー(root等)で接続しようとして
+      # "role root does not exist" が出続けるので明示指定する
+      test: ["CMD-SHELL", "pg_isready -U user -d fitness_db -h localhost -p 5432"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+    restart: unless-stopped
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "3001:3000"
     environment:
+      DB_HOST: postgres
+      DB_NAME: fitness_db
+      DB_USER: user
+      DB_PASSWORD: password
       NODE_ENV: development
-      AWS_REGION: "us-east-1"
-      AWS_ACCESS_KEY_ID: "dummy"
-      AWS_SECRET_ACCESS_KEY: "dummy"
-      DYNAMODB_ENDPOINT: "http://dynamodb:8000"
+      PORT: "3000"
+    ports:
+      - "3000:3000"
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
     command: ["npm", "start"]
     depends_on:
-      - dynamodb
+      postgres:
+        condition: service_healthy
+    restart: on-failure
 
   fitness_app_frontend:
     build:
@@ -35,8 +52,12 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
+  postgres_data:
   backend_node_modules:
-  dynamodb_data:
