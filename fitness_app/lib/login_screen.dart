@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
-import 'dart:convert'; // For json.encode
+import 'dart:convert'; // For json.encode/decode
 import 'package:http/http.dart' as http; // For making HTTP requests
+
+// ✅ APIのベースURLを dart-define から読む（未指定なら3000）
+const String apiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://localhost:3000',
+);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,19 +18,25 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
   bool _isLoading = false;
   String _errorMessage = '';
 
   Future<void> _login() async {
-    // Keep the existing login logic
+    // ✅ クリック確認ログ
+    debugPrint('LOGIN: tapped -> POST $apiBaseUrl/login');
+
     setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
 
     try {
+      final uri = Uri.parse('$apiBaseUrl/login');
+      debugPrint('LOGIN: uri=$uri');
+
       final response = await http.post(
-        Uri.parse('http://localhost:3001/login'),
+        uri,
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'username': _usernameController.text,
@@ -32,23 +44,39 @@ class _LoginScreenState extends State<LoginScreen> {
         }),
       );
 
+      debugPrint('LOGIN: status=${response.statusCode}');
+      debugPrint('LOGIN: body=${response.body}');
+
       if (!mounted) return;
 
       if (response.statusCode == 200) {
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        final Map<String, dynamic> responseBody = json.decode(response.body);
+        String message = 'Login failed. Please try again.';
+        try {
+          final Map<String, dynamic> responseBody =
+              json.decode(response.body) as Map<String, dynamic>;
+          message = (responseBody['message'] ?? message).toString();
+        } catch (_) {
+          // JSONじゃないときは response.body をそのまま表示してもOK
+          if (response.body.isNotEmpty) message = response.body;
+        }
         setState(() {
-          _errorMessage =
-              responseBody['message'] ?? 'Login failed. Please try again.';
+          _errorMessage = message;
         });
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Network error or server unavailable.';
-      });
+    } catch (e, st) {
+      // ✅ 例外内容を必ず表示（Networkに出ない原因を特定できる）
+      debugPrint('LOGIN: exception=$e');
+      debugPrint('LOGIN: stacktrace=$st');
+
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Network error or server unavailable.';
+        });
+      }
     } finally {
-      if(mounted) {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -57,8 +85,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -74,6 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: theme.primaryColor,
                 ),
                 const SizedBox(height: 16),
+
                 Text(
                   'FitTrackr',
                   textAlign: TextAlign.center,
@@ -84,6 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
+
                 Text(
                   'Welcome back!',
                   textAlign: TextAlign.center,
@@ -100,7 +138,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       _errorMessage,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
 
@@ -110,7 +151,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (textEditingValue.text == '') {
                       return const Iterable<String>.empty();
                     }
-                    const options = ['user1@example.com', 'user2@example.com', 'testuser'];
+                    const options = [
+                      'user1@example.com',
+                      'user2@example.com',
+                      'testuser'
+                    ];
                     return options.where((String option) {
                       return option.contains(textEditingValue.text.toLowerCase());
                     });
@@ -118,11 +163,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   onSelected: (String selection) {
                     _usernameController.text = selection;
                   },
-                  fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController,
-                      FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
-                    // This is a bit of a hack to make the field controller work with the state's controller
-                    // We are not using fieldTextEditingController, but _usernameController
-                    // This could be improved by passing the controller in a better way
+                  fieldViewBuilder: (
+                    BuildContext context,
+                    TextEditingController fieldTextEditingController,
+                    FocusNode fieldFocusNode,
+                    VoidCallback onFieldSubmitted,
+                  ) {
                     return TextField(
                       controller: _usernameController,
                       focusNode: fieldFocusNode,
@@ -171,12 +217,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: () {
                         Navigator.pushNamed(context, '/signup');
                       },
-                      child: const Text(
-                        'Sign Up',
-                      ),
+                      child: const Text('Sign Up'),
                     ),
                   ],
-                )
+                ),
               ],
             ),
           ),

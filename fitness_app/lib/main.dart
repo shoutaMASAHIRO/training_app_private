@@ -2,6 +2,9 @@
 import 'package:fitness_app/login_screen.dart';
 import 'package:fitness_app/home_screen.dart';
 import 'package:fitness_app/signup_screen.dart';
+import 'package:fitness_app/add_schedule_screen.dart';
+import 'package:fitness_app/workout_screen.dart';
+import 'package:fitness_app/token_history_screen.dart';
 
 void main() {
   runApp(const FitnessApp());
@@ -61,6 +64,9 @@ class FitnessApp extends StatelessWidget {
         '/': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(),
         '/signup': (context) => const SignupScreen(),
+        '/add_schedule': (context) => const AddScheduleScreen(),
+        '/workout': (context) => const WorkoutScreen(),
+        '/token_history': (context) => const TokenHistoryScreen(),
       },
     );
   }

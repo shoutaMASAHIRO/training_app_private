@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
-import 'dart:convert'; // For json.encode
+import 'dart:convert'; // For json.encode/decode
 import 'package:http/http.dart' as http; // For making HTTP requests
+
+// ✅ APIのベースURLを dart-define から読む（未指定なら3000）
+const String apiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://localhost:3000',
+);
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -12,12 +18,16 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+
   bool _isLoading = false;
   String _errorMessage = '';
   String _successMessage = '';
 
   Future<void> _signup() async {
+    debugPrint('SIGNUP: tapped -> POST $apiBaseUrl/register');
+
     if (_passwordController.text != _confirmPasswordController.text) {
       setState(() {
         _errorMessage = 'Passwords do not match.';
@@ -33,8 +43,11 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
+      final uri = Uri.parse('$apiBaseUrl/register');
+      debugPrint('SIGNUP: uri=$uri');
+
       final response = await http.post(
-        Uri.parse('http://localhost:3001/register'),
+        uri,
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'username': _usernameController.text,
@@ -42,26 +55,44 @@ class _SignupScreenState extends State<SignupScreen> {
         }),
       );
 
+      debugPrint('SIGNUP: status=${response.statusCode}');
+      debugPrint('SIGNUP: body=${response.body}');
+
       if (!mounted) return;
 
-      final Map<String, dynamic> responseBody = json.decode(response.body);
+      // サーバがJSONを返さない可能性にも備えて安全に処理
+      Map<String, dynamic> responseBody = {};
+      try {
+        responseBody = json.decode(response.body) as Map<String, dynamic>;
+      } catch (_) {}
 
       if (response.statusCode == 201) {
         setState(() {
           _successMessage = 'Registration successful! Redirecting to login...';
         });
+
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) {
             Navigator.pop(context);
           }
         });
       } else {
+        String message = 'Registration failed.';
+        if (responseBody.isNotEmpty) {
+          message = (responseBody['message'] ?? message).toString();
+        } else if (response.body.isNotEmpty) {
+          message = response.body; // JSONじゃない場合も一応出す
+        }
+
         setState(() {
-          _errorMessage = responseBody['message'] ?? 'Registration failed.';
+          _errorMessage = message;
         });
       }
-    } catch (e) {
-       if (mounted) {
+    } catch (e, st) {
+      debugPrint('SIGNUP: exception=$e');
+      debugPrint('SIGNUP: stacktrace=$st');
+
+      if (mounted) {
         setState(() {
           _errorMessage = 'Network error or server unavailable.';
         });
@@ -76,8 +107,17 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         // The AppBar's foregroundColor is handled by the global theme
@@ -100,6 +140,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
+
                 Text(
                   'Join us to start your fitness journey!',
                   textAlign: TextAlign.center,
@@ -116,16 +157,23 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: Text(
                       _errorMessage,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
+
                 if (_successMessage.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
                     child: Text(
                       _successMessage,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.green, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
 
@@ -137,6 +185,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -146,6 +195,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
                 TextField(
                   controller: _confirmPasswordController,
                   obscureText: true,
@@ -155,6 +205,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
+
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : SizedBox(
