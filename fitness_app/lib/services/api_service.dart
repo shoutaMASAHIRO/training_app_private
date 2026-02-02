@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:fitness_app/models/workout_schedule.dart';
-import 'package:fitness_app/models/token_summary.dart';
+
+import 'package:fitness_app/services/api_config.dart';
 
 class ApiService {
-  final String _baseUrl = 'http://localhost:3000';
+  final String _baseUrl = apiBaseUrl;
 
   Future<List<WorkoutSchedule>> getSchedules() async {
     final response = await http.get(Uri.parse('$_baseUrl/schedules'));
@@ -16,16 +17,6 @@ class ApiService {
       return schedules;
     } else {
       throw Exception('Failed to load schedules');
-    }
-  }
-
-  Future<TokenSummary> getTokenSummary() async {
-    final response = await http.get(Uri.parse('$_baseUrl/token-summary'));
-
-    if (response.statusCode == 200) {
-      return TokenSummary.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception('Failed to load token summary');
     }
   }
 

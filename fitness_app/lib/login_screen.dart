@@ -1,12 +1,7 @@
+import 'package:fitness_app/services/api_config.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert'; // For json.encode/decode
 import 'package:http/http.dart' as http; // For making HTTP requests
-
-// ✅ APIのベースURLを dart-define から読む（未指定なら3000）
-const String apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://localhost:3000',
-);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

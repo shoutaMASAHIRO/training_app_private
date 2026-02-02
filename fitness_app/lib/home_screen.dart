@@ -6,7 +6,6 @@ import 'package:table_calendar/table_calendar.dart';
 
 import 'package:fitness_app/services/api_service.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
-import 'package:fitness_app/models/token_summary.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,12 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static final List<Widget> _widgetOptions = <Widget>[
     const DashboardScreen(),
-    const Center(
-      child: Text(
-        'Workouts Screen',
-        style: TextStyle(fontSize: 24, color: Colors.black87),
-      ),
-    ),
+    const WorkoutsScreen(), // Replaced the placeholder with WorkoutsScreen
     const Center(
       child: Text(
         'Progress Screen',
@@ -100,7 +94,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final ApiService _apiService = ApiService();
 
-  Future<Map<String, dynamic>>? _dashboardData;
+  Future<List<WorkoutSchedule>>? _schedulesData;
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -110,15 +104,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _dashboardData = _fetchData();
+    _schedulesData = _fetchData();
     _selectedDay = _focusedDay;
   }
 
-  Future<Map<String, dynamic>> _fetchData() async {
+  Future<List<WorkoutSchedule>> _fetchData() async {
     try {
       final schedules = await _apiService.getSchedules();
-      final tokenSummary = await _apiService.getTokenSummary();
-      return {'schedules': schedules, 'tokenSummary': tokenSummary};
+      return schedules;
     } catch (e) {
       throw Exception('Failed to fetch dashboard data: $e');
     }
@@ -126,7 +119,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _refreshData() async {
     setState(() {
-      _dashboardData = _fetchData();
+      _schedulesData = _fetchData();
     });
   }
 
@@ -204,14 +197,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Navigator.pushNamed(context, '/workout').then((_) => _refreshData());
   }
 
-  void _navigateToTokenHistory() {
-    Navigator.pushNamed(context, '/token_history').then((_) => _refreshData());
-  }
-
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _dashboardData,
+    return FutureBuilder<List<WorkoutSchedule>>(
+      future: _schedulesData,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -224,13 +213,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           );
         }
-        if (!snapshot.hasData || snapshot.data == null) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(child: Text('No data found.'));
         }
 
-        final List<WorkoutSchedule> schedules = snapshot.data!['schedules'];
-        final TokenSummary tokenSummary = snapshot.data!['tokenSummary'];
-
+        final List<WorkoutSchedule> schedules = snapshot.data!;
         final upcomingSchedules =
             schedules.where((s) => !s.isCompleted).toList();
 
@@ -241,11 +228,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _TokenSummaryCard(
-                  summary: tokenSummary,
-                  onHistoryTap: _navigateToTokenHistory,
-                ),
-                const SizedBox(height: 24),
                 _TodaysWorkoutSection(
                   upcomingSchedules: upcomingSchedules,
                   onStart: _navigateToWorkout,
@@ -272,99 +254,97 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           });
                         }
                       },
-                                            onPageChanged: (focusedDay) {
-                                              setState(() {
-                                                _focusedDay = focusedDay;
-                                              });
-                                            },
-                                            // onHeaderTapped is now handled by the builder
-                                            // --- Styling ---
-                                            headerStyle: const HeaderStyle(
-                                              titleCentered: true,
-                                              formatButtonVisible: false,
-                                              titleTextStyle: TextStyle(
-                                                  fontSize: 18, fontWeight: FontWeight.bold),
-                                              leftChevronIcon:
-                                                  Icon(Icons.chevron_left, color: Colors.black87),
-                                              rightChevronIcon:
-                                                  Icon(Icons.chevron_right, color: Colors.black87),
-                                            ),
-                                            calendarBuilders: CalendarBuilders(
-                                              headerTitleBuilder: (context, date) {
-                                                return Center(
-                                                  child: MouseRegion(
-                                                    cursor: SystemMouseCursors.click,
-                                                    onEnter: (_) =>
-                                                        setState(() => _isHeaderHovered = true),
-                                                    onExit: (_) =>
-                                                        setState(() => _isHeaderHovered = false),
-                                                    child: GestureDetector(
-                                                      onTap: () => _onHeaderTapped(context, date),
-                                                      child: Container(
-                                                        padding:
-                                                            const EdgeInsets.symmetric(vertical: 8),
-                                                        child: Text(
-                                                          DateFormat('yyyy年M月').format(date),
-                                                          style: TextStyle(
-                                                            fontSize: 18,
-                                                            fontWeight: FontWeight.bold,
-                                                            color: _isHeaderHovered
-                                                                ? Colors.grey.shade600
-                                                                : Colors.black87,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                              prioritizedBuilder: (context, day, focusedDay) {
-                                                final isHovered = isSameDay(_hoveredDay, day);
-                                                final isSelected = isSameDay(_selectedDay, day);
-                                                final isToday = isSameDay(day, DateTime.now());
-                      
-                                                BoxDecoration decoration;
-                                                if (isSelected) {
-                                                  decoration = const BoxDecoration(
-                                                    color: Colors.black87,
-                                                    shape: BoxShape.circle,
-                                                  );
-                                                } else if (isToday) {
-                                                  decoration = BoxDecoration(
-                                                    color: Colors.black.withOpacity(0.2),
-                                                    shape: BoxShape.circle,
-                                                  );
-                                                } else if (isHovered) {
-                                                  decoration = BoxDecoration(
-                                                    color: Colors.grey.withOpacity(0.3),
-                                                    shape: BoxShape.circle,
-                                                  );
-                                                } else {
-                                                  decoration = const BoxDecoration(shape: BoxShape.circle);
-                                                }
-                      
-                                                return MouseRegion(
-                                                  onEnter: (_) => setState(() => _hoveredDay = day),
-                                                  onExit: (_) => setState(() => _hoveredDay = null),
-                                                  child: AnimatedContainer(
-                                                    duration: const Duration(milliseconds: 150),
-                                                    margin: const EdgeInsets.all(4.0),
-                                                    decoration: decoration,
-                                                    child: Center(
-                                                      child: Text(
-                                                        '${day.day}',
-                                                        style: TextStyle(
-                                                          color: isSelected
-                                                              ? Colors.white
-                                                              : Colors.black87,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                       calendarStyle: const CalendarStyle(
+                      onPageChanged: (focusedDay) {
+                        setState(() {
+                          _focusedDay = focusedDay;
+                        });
+                      },
+                      headerStyle: const HeaderStyle(
+                        titleCentered: true,
+                        formatButtonVisible: false,
+                        titleTextStyle: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                        leftChevronIcon:
+                            Icon(Icons.chevron_left, color: Colors.black87),
+                        rightChevronIcon:
+                            Icon(Icons.chevron_right, color: Colors.black87),
+                      ),
+                      calendarBuilders: CalendarBuilders(
+                        headerTitleBuilder: (context, date) {
+                          return Center(
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              onEnter: (_) =>
+                                  setState(() => _isHeaderHovered = true),
+                              onExit: (_) =>
+                                  setState(() => _isHeaderHovered = false),
+                              child: GestureDetector(
+                                onTap: () => _onHeaderTapped(context, date),
+                                child: Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    DateFormat('yyyy年M月').format(date),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: _isHeaderHovered
+                                          ? Colors.grey.shade600
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        prioritizedBuilder: (context, day, focusedDay) {
+                          final isHovered = isSameDay(_hoveredDay, day);
+                          final isSelected = isSameDay(_selectedDay, day);
+                          final isToday = isSameDay(day, DateTime.now());
+
+                          BoxDecoration decoration;
+                          if (isSelected) {
+                            decoration = const BoxDecoration(
+                              color: Colors.black87,
+                              shape: BoxShape.circle,
+                            );
+                          } else if (isToday) {
+                            decoration = BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            );
+                          } else if (isHovered) {
+                            decoration = BoxDecoration(
+                              color: Colors.grey.withOpacity(0.3),
+                              shape: BoxShape.circle,
+                            );
+                          } else {
+                            decoration = const BoxDecoration(shape: BoxShape.circle);
+                          }
+
+                          return MouseRegion(
+                            onEnter: (_) => setState(() => _hoveredDay = day),
+                            onExit: (_) => setState(() => _hoveredDay = null),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              margin: const EdgeInsets.all(4.0),
+                              decoration: decoration,
+                              child: Center(
+                                child: Text(
+                                  '${day.day}',
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      calendarStyle: const CalendarStyle(
                         // Default marker style is fine
                       ),
                     ),
@@ -404,51 +384,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// --- Dashboard Widgets ---
-
-class _TokenSummaryCard extends StatelessWidget {
-  final TokenSummary summary;
-  final VoidCallback onHistoryTap;
-
-  const _TokenSummaryCard({required this.summary, required this.onHistoryTap});
+// --- Workouts Screen (New) ---
+class WorkoutsScreen extends StatelessWidget {
+  const WorkoutsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            const Icon(Icons.stars_rounded, color: Colors.amber, size: 40),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${summary.totalTokens} Tokens',
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87),
+    final theme = Theme.of(context);
+    final List<String> workoutMenus = const ['Smolov Jr.', '10x10']; // Example menus
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16.0),
+      itemCount: workoutMenus.length,
+      itemBuilder: (context, index) {
+        final menuName = workoutMenus[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 5), // Consistent spacing
+          child: GestureDetector(
+            onTap: () {
+              Navigator.pushNamed(context, '/workout_detail', arguments: menuName);
+            },
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade400), // Darker border
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        menuName,
+                        style: const TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                const Text('Well done! Keep it up.',
-                    style: TextStyle(color: Colors.grey)),
-              ],
+              ),
             ),
-            const Spacer(),
-            TextButton(
-              onPressed: onHistoryTap,
-              child: const Text('History'),
-            )
-          ],
-        ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// --- Workout Detail Screen (Placeholder) ---
+class WorkoutDetailScreen extends StatelessWidget {
+  final String workoutName;
+
+  const WorkoutDetailScreen({super.key, required this.workoutName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(workoutName),
+      ),
+      body: Center(
+        child: Text('Details for $workoutName will be added here.'),
       ),
     );
   }
 }
+
+// --- Dashboard Widgets ---
 
 class _TodaysWorkoutSection extends StatelessWidget {
   final List<WorkoutSchedule> upcomingSchedules;
