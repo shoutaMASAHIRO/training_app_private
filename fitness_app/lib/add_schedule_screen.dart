@@ -1,3 +1,4 @@
+import 'package:fitness_app/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -11,11 +12,35 @@ class AddScheduleScreen extends StatefulWidget {
 class _AddScheduleScreenState extends State<AddScheduleScreen> {
   final TextEditingController _workoutNameController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
+  int _selectedIndex = 0; // Default to 'Dashboard'
 
   @override
   void dispose() {
     _workoutNameController.dispose();
     super.dispose();
+  }
+
+  void _onItemTapped(int index) {
+    if (_selectedIndex == index) return;
+
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Dashboard
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 0});
+        break;
+      case 1: // Workouts
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1});
+        break;
+      case 2: // Progress
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2});
+        break;
+      case 3: // Logs
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3});
+        break;
+    }
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -114,6 +139,10 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
             ),
           ],
         ),
+      ),
+      bottomNavigationBar: AppBottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
       ),
     );
   }

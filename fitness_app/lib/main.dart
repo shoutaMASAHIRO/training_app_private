@@ -4,6 +4,7 @@ import 'package:fitness_app/home_screen.dart'; // Contains WorkoutDetailScreen n
 import 'package:fitness_app/signup_screen.dart';
 import 'package:fitness_app/add_schedule_screen.dart';
 import 'package:fitness_app/workout_screen.dart';
+import 'package:fitness_app/models/workout_schedule.dart';
 
 void main() {
   runApp(const FitnessApp());
@@ -61,10 +62,16 @@ class FitnessApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const LoginScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+          return HomeScreen(initialIndex: args?['initialIndex'] as int?);
+        },
         '/signup': (context) => const SignupScreen(),
         '/add_schedule': (context) => const AddScheduleScreen(),
-        '/workout': (context) => const WorkoutScreen(),
+        '/workout': (context) {
+          final schedule = ModalRoute.of(context)!.settings.arguments as WorkoutSchedule;
+          return WorkoutScreen(schedule: schedule);
+        },
         '/workout_detail': (context) => WorkoutDetailScreen(workoutName: ModalRoute.of(context)!.settings.arguments as String),
       },
     );

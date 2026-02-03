@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:fitness_app/services/api_service.dart';
+import 'package:fitness_app/models/workout_log.dart'; // Add this import
 
 class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key});
@@ -12,7 +13,7 @@ class LogsScreen extends StatefulWidget {
 
 class _LogsScreenState extends State<LogsScreen> {
   final ApiService _apiService = ApiService();
-  List<Map<String, dynamic>> _logs = [];
+  List<WorkoutLog> _logs = []; // Change type here
   bool _isLoading = true;
 
   DateTime _focusedDay = DateTime.now();
@@ -28,7 +29,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   Future<void> _loadLogs() async {
     try {
-      final logs = await _apiService.getLogs();
+      final logs = await _apiService.getLogs(); // Returns List<WorkoutLog>
       setState(() {
         _logs = logs;
         _isLoading = false;
@@ -40,10 +41,10 @@ class _LogsScreenState extends State<LogsScreen> {
     }
   }
 
-  List<Map<String, dynamic>> _getLogsForDay(DateTime day) {
+  List<WorkoutLog> _getLogsForDay(DateTime day) {
+    // Change return type and access properties directly
     return _logs.where((log) {
-      final logDate = DateTime.parse(log['completed_date']);
-      return isSameDay(logDate, day);
+      return isSameDay(log.completedDate, day);
     }).toList();
   }
 
@@ -224,11 +225,11 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  Widget _buildLogCard(Map<String, dynamic> log) {
-    final menuTitle = log['menu_title'] as String;
-    final workoutDetails = log['workout_details'] as String?;
-    final successCount = log['success_count'] as int? ?? 0;
-    final failCount = log['fail_count'] as int? ?? 0;
+  Widget _buildLogCard(WorkoutLog log) {
+    final menuTitle = log.menuTitle;
+    final workoutDetails = log.workoutDetails;
+    final successCount = log.successCount ?? 0;
+    final failCount = log.failCount ?? 0;
     final totalCount = successCount + failCount;
     final menuColor = _getMenuColor(menuTitle);
 

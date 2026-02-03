@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:fitness_app/models/workout_schedule.dart';
+import 'package:fitness_app/models/workout_log.dart'; // Add this import
 
 import 'package:fitness_app/services/api_config.dart';
 
@@ -95,41 +96,41 @@ class ApiService {
   // --- Workout Logs API ---
 
   // ログ一覧取得
-  Future<List<Map<String, dynamic>>> getLogs() async {
+  Future<List<WorkoutLog>> getLogs() async {
     final response = await http.get(Uri.parse('$_baseUrl/logs'));
+    debugPrint('[API] GET $_baseUrl/logs');
+    debugPrint('[API] Response status: ${response.statusCode}');
 
     if (response.statusCode == 200) {
       List<dynamic> body = jsonDecode(response.body);
-      return body.cast<Map<String, dynamic>>();
+      List<WorkoutLog> logs =
+          body.map((dynamic item) => WorkoutLog.fromJson(item)).toList();
+      debugPrint('[API] Loaded ${logs.length} logs');
+      return logs;
     } else {
-      throw Exception('Failed to load logs');
+      debugPrint('[API] Error body: ${response.body}');
+      throw Exception('Failed to load logs: ${response.statusCode}');
     }
   }
 
   // ログ追加
-  Future<void> addLog({
-    required DateTime completedDate,
-    required String menuTitle,
-    String? workoutDetails,
-    int successCount = 0,
-    int failCount = 0,
-  }) async {
-    final body = jsonEncode({
-      'completed_date': completedDate.toIso8601String().split('T')[0],
-      'menu_title': menuTitle,
-      'workout_details': workoutDetails,
-      'success_count': successCount,
-      'fail_count': failCount,
-    });
+  Future<void> addLog(WorkoutLog log) async {
+    final url = '$_baseUrl/logs';
+    final body = jsonEncode(log.toJson());
+    debugPrint('[API] POST $url');
+    debugPrint('[API] Request body: $body');
 
     final response = await http.post(
-      Uri.parse('$_baseUrl/logs'),
+      Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
       body: body,
     );
 
+    debugPrint('[API] Response status: ${response.statusCode}');
+    debugPrint('[API] Response body: ${response.body}');
+
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception('Failed to add log');
+      throw Exception('Failed to add log: ${response.statusCode} - ${response.body}');
     }
   }
 

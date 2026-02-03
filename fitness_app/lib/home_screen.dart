@@ -1,3 +1,4 @@
+import 'package:fitness_app/progress_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fitness_app/logs_screen.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +9,8 @@ import 'package:fitness_app/services/api_service.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int? initialIndex;
+  const HomeScreen({super.key, this.initialIndex});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -17,16 +19,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex ?? 0;
+  }
+
   static final List<Widget> _widgetOptions = <Widget>[
-    const DashboardScreen(),
-    const WorkoutsScreen(),
-    const Center(
-      child: Text(
-        'Progress Screen',
-        style: TextStyle(fontSize: 24, color: Colors.black87),
-      ),
-    ),
-    const LogsScreen(),
+    DashboardScreen(),
+    WorkoutsScreen(),
+    ProgressScreen(),
+    LogsScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -193,8 +196,83 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Navigator.pushNamed(context, '/add_schedule').then((_) => _refreshData());
   }
 
-  void _navigateToWorkout() {
-    Navigator.pushNamed(context, '/workout').then((_) => _refreshData());
+  Future<void> _adjustNext10x10Workout(
+      WorkoutSchedule completedSchedule, bool wasSuccess) async {
+    try {
+      final allSchedules = await _apiService.getSchedules();
+      // Ensure schedules are sorted by date to find the correct next one
+      allSchedules.sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
+
+      // 残りのすべての未完了10x10スケジュールを取得
+      final remainingSchedules = allSchedules
+          .where((s) =>
+              s.menuTitle == '10x10' &&
+              !s.isCompleted &&
+              s.scheduledDate.isAfter(completedSchedule.scheduledDate))
+          .toList();
+
+      if (remainingSchedules.isEmpty) return;
+
+      final details = completedSchedule.workoutDetails;
+      double currentWeight = 0;
+      if (details != null && details.contains('@')) {
+        final weightString =
+            details.split('@')[1].trim().split('kg')[0].trim();
+        currentWeight = double.tryParse(weightString) ?? 0;
+      }
+
+      if (currentWeight <= 0) return;
+
+      // 成功時: 次から +2.5, +5.0, +7.5, ...
+      // 失敗時: 次は同じ重量、その次から +2.5, +5.0, ...
+      final List<WorkoutSchedule> updatedSchedules = [];
+      for (int i = 0; i < remainingSchedules.length; i++) {
+        final schedule = remainingSchedules[i];
+        double newWeight;
+        if (wasSuccess) {
+          // 成功: 基準重量から +2.5kg ずつ増加
+          newWeight = currentWeight + ((i + 1) * 2.5);
+        } else {
+          // 失敗: 最初は同じ重量、その後 +2.5kg ずつ増加
+          newWeight = currentWeight + (i * 2.5);
+        }
+
+        updatedSchedules.add(WorkoutSchedule(
+          id: 0,
+          scheduledDate: schedule.scheduledDate,
+          isCompleted: false,
+          menuTitle: schedule.menuTitle,
+          menuDifficulty: schedule.menuDifficulty,
+          workoutDetails: '10x10 @ ${newWeight.toStringAsFixed(1)}kg',
+        ));
+      }
+
+      // 古いスケジュールを削除して新しいスケジュールを追加
+      for (final schedule in remainingSchedules) {
+        await _apiService.deleteSchedule(schedule.id);
+      }
+      await _apiService.addSchedules(updatedSchedules);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('スケジュールの調整に失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _navigateToWorkout(WorkoutSchedule schedule) {
+    Navigator.pushNamed(context, '/workout', arguments: schedule)
+        .then((result) async {
+      if ((result == 'fail' || result == 'success') &&
+          schedule.menuTitle == '10x10') {
+        await _adjustNext10x10Workout(schedule, result == 'success');
+      }
+      _refreshData();
+    });
   }
 
   @override
@@ -218,6 +296,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final List<WorkoutSchedule> schedules = snapshot.data ?? [];
         final upcomingSchedules =
             schedules.where((s) => !s.isCompleted).toList();
+
+        // Sort upcoming schedules: primarily by date, secondarily by Smolov Jr. preference
+        upcomingSchedules.sort((s1, s2) {
+          final dateComparison = s1.scheduledDate.compareTo(s2.scheduledDate);
+          if (dateComparison != 0) {
+            return dateComparison;
+          }
+
+          // Same day, prioritize Smolov Jr.
+          if (s1.menuTitle == 'Smolov Jr.' && s2.menuTitle != 'Smolov Jr.') {
+            return -1; // s1 comes before s2
+          }
+          if (s2.menuTitle == 'Smolov Jr.' && s1.menuTitle != 'Smolov Jr.') {
+            return 1; // s2 comes before s1
+          }
+          return s1.menuTitle.compareTo(s2.menuTitle); // Alphabetical for other cases
+        });
 
         return RefreshIndicator(
           onRefresh: _refreshData,
@@ -271,24 +366,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         markerBuilder: (context, day, events) {
                           if (events.isEmpty) return const SizedBox.shrink();
 
-                          // イベント（スケジュール）をWorkoutScheduleとしてキャスト
                           final scheduleEvents = events.cast<WorkoutSchedule>();
                           final hasSmolovJr = scheduleEvents.any((s) => s.menuTitle == 'Smolov Jr.');
+                          final has10x10 = scheduleEvents.any((s) => s.menuTitle == '10x10');
+                          final hasOther = scheduleEvents.any((s) =>
+                              s.menuTitle != 'Smolov Jr.' &&
+                              s.menuTitle != '10x10' &&
+                              s.menuTitle.isNotEmpty);
+
+                          List<Widget> markers = [];
+                          if (hasSmolovJr) {
+                            markers.add(Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 1.0),
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.red,
+                              ),
+                            ));
+                          }
+                          if (has10x10) {
+                            markers.add(Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 1.0),
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.blue,
+                              ),
+                            ));
+                          }
+                          if (hasOther) {
+                            markers.add(Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 1.0),
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black87,
+                              ),
+                            ));
+                          }
+
+                          if (markers.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
 
                           return Positioned(
                             bottom: 1,
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: hasSmolovJr ? Colors.red : Colors.black87,
-                                  ),
-                                ),
-                              ],
+                              children: markers,
                             ),
                           );
                         },
@@ -327,22 +456,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                           BoxDecoration decoration;
                           if (isSelected) {
-                            decoration = const BoxDecoration(
+                            decoration = BoxDecoration(
                               color: Colors.black87,
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(8.0),
                             );
                           } else if (isToday) {
                             decoration = BoxDecoration(
                               color: Colors.black.withOpacity(0.2),
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(8.0),
                             );
                           } else if (isHovered) {
                             decoration = BoxDecoration(
                               color: Colors.grey.withOpacity(0.3),
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(8.0),
                             );
                           } else {
-                            decoration = const BoxDecoration(shape: BoxShape.circle);
+                            decoration =
+                                const BoxDecoration(shape: BoxShape.rectangle);
                           }
 
                           return MouseRegion(
@@ -531,14 +661,117 @@ class WorkoutDetailScreen extends StatefulWidget {
 
 class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   final TextEditingController _maxWeightController = TextEditingController();
+  final TextEditingController _currentWeightController = TextEditingController();
   final ApiService _apiService = ApiService();
   List<Map<String, dynamic>>? _calculatedProgram;
   bool _isRegistering = false;
+  int _selectedIndex = 1; // Default to 'Workouts'
+
+  void _onItemTapped(int index) {
+    if (_selectedIndex == index) return;
+
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Dashboard
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 0});
+        break;
+      case 1: // Workouts
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1});
+        break;
+      case 2: // Progress
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2});
+        break;
+      case 3: // Logs
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3});
+        break;
+    }
+  }
 
   @override
   void dispose() {
     _maxWeightController.dispose();
+    _currentWeightController.dispose();
     super.dispose();
+  }
+
+  // 10x10 プログラムを登録
+  Future<void> _register10x10Program() async {
+    final startWeight = double.tryParse(_currentWeightController.text);
+    if (startWeight == null || startWeight <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('有効な重量を入力してください')),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isRegistering = true;
+    });
+
+    try {
+      debugPrint('=== 10x10 登録開始 ===');
+
+      // 既存の10x10スケジュールを削除
+      debugPrint('既存スケジュール削除中...');
+      await _apiService.deleteSchedulesByMenuTitle('10x10');
+      debugPrint('既存スケジュール削除完了');
+
+      final today = DateUtils.dateOnly(DateTime.now());
+      final List<WorkoutSchedule> schedules = [];
+
+      for (int i = 0; i < 10; i++) {
+        final scheduledDate = today.add(Duration(days: i));
+        final weight = startWeight + (i * 2.5);
+        final workoutDetails = '10x10 @ ${weight.toStringAsFixed(1)}kg';
+
+        schedules.add(WorkoutSchedule(
+          id: 0, // サーバー側で生成される
+          scheduledDate: scheduledDate,
+          isCompleted: false,
+          menuTitle: '10x10',
+          menuDifficulty: 'Day ${i + 1}',
+          workoutDetails: workoutDetails,
+        ));
+        debugPrint('スケジュール追加: ${scheduledDate.toIso8601String()} - $workoutDetails');
+      }
+
+      // 一括登録
+      debugPrint('APIに${schedules.length}件のスケジュールを登録中...');
+      await _apiService.addSchedules(schedules);
+      debugPrint('=== 登録完了 ===');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('プログラムをカレンダーに登録しました'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('=== 登録エラー ===');
+      debugPrint('Error: $e');
+      debugPrint('StackTrace: $stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('登録に失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRegistering = false;
+        });
+      }
+    }
   }
 
   // カレンダーにプログラムを登録
@@ -584,12 +817,11 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
           debugPrint('スケジュール追加: ${scheduledDate.toIso8601String()} - $workoutDetails');
 
-          // 次のワークアウトは1日後（週4回なので連続日）
-          dayOffset++;
-
-          // 週4日後に1日休み（オプション）
-          if (dayIndex == 3 && week < 2) {
-            dayOffset++; // 週末に1日休み
+          // Update offset for the next day based on user's request
+          if (dayIndex == 0) { // After Day 1
+            dayOffset += 1; // Day 2 is consecutive
+          } else { // After Day 2, Day 3, and Day 4, add a 1-day break
+            dayOffset += 2;
           }
         }
       }
@@ -682,7 +914,140 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Smolov Jr.以外のメニューはプレースホルダー表示
+    if (widget.workoutName == '10x10') {
+      // 10x10-specific UI
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.workoutName)),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Program description card
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.blue, // 10x10 theme color
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '10x10 プログラム',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'ジャーマンボリュームトレーニング',
+                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Current weight input section
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '現在の重量を入力',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _currentWeightController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: InputDecoration(
+                                hintText: '例: 80',
+                                hintStyle: TextStyle(color: Colors.grey.shade400),
+                                suffixText: 'kg',
+                                suffixStyle: TextStyle(color: Colors.grey.shade600),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Colors.blue), // 10x10 theme color
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: _isRegistering ? null : _register10x10Program,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue, // 10x10 theme color
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.shade400,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: _isRegistering
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text('登録'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar: AppBottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+        ),
+      );
+    }
+
+    // Smolov Jr. or other workouts
     if (widget.workoutName != 'Smolov Jr.') {
       return Scaffold(
         appBar: AppBar(
@@ -690,6 +1055,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         ),
         body: Center(
           child: Text('Details for ${widget.workoutName} will be added here.'),
+        ),
+        bottomNavigationBar: AppBottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
         ),
       );
     }
@@ -901,6 +1270,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: AppBottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
     );
   }
 
@@ -1031,51 +1404,16 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
 class _TodaysWorkoutSection extends StatelessWidget {
   final List<WorkoutSchedule> upcomingSchedules;
-  final VoidCallback onStart;
-  final VoidCallback onAddSchedule;
-
-  const _TodaysWorkoutSection({
-    required this.upcomingSchedules,
-    required this.onStart,
-    required this.onAddSchedule,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final today = DateUtils.dateOnly(DateTime.now());
-    final WorkoutSchedule? todaysSchedule = upcomingSchedules.firstWhereOrNull(
-      (s) => DateUtils.dateOnly(s.scheduledDate) == today,
-    );
-
-    if (todaysSchedule == null) {
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: Colors.black87,
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('No upcoming workouts.',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: onAddSchedule,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black87),
-                child: const Text('＋ Add a Schedule'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    // メニュー名に対応した色を取得
-    Color getMenuColor(String menuTitle) {
+    final void Function(WorkoutSchedule) onStart;
+    final VoidCallback onAddSchedule;
+  
+    const _TodaysWorkoutSection({
+      required this.upcomingSchedules,
+      required this.onStart,
+      required this.onAddSchedule,
+    });
+  
+    static Color getMenuColor(String menuTitle) {
       switch (menuTitle) {
         case 'Smolov Jr.':
           return Colors.red;
@@ -1085,13 +1423,68 @@ class _TodaysWorkoutSection extends StatelessWidget {
           return Colors.grey;
       }
     }
+  
+    @override
+    Widget build(BuildContext context) {
+      final today = DateUtils.dateOnly(DateTime.now());
+      final List<WorkoutSchedule> todaysWorkouts = upcomingSchedules
+          .where((s) => DateUtils.dateOnly(s.scheduledDate) == today)
+          .toList();
+  
+      if (todaysWorkouts.isEmpty) {
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: Colors.black87,
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('No upcoming workouts.',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: onAddSchedule,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black87),
+                  child: const Text('＋ Add a Schedule'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+  
+      return Column(
+        children: todaysWorkouts.map((schedule) => _TodaysWorkoutCard(
+          schedule: schedule,
+          onStart: () => onStart(schedule),
+        )).toList(),
+      );
+    }}
 
-    final menuColor = getMenuColor(todaysSchedule.menuTitle);
+// New widget for displaying a single today's workout
+class _TodaysWorkoutCard extends StatelessWidget {
+  final WorkoutSchedule schedule;
+  final VoidCallback onStart;
+
+  const _TodaysWorkoutCard({
+    required this.schedule,
+    required this.onStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final menuColor = _TodaysWorkoutSection.getMenuColor(schedule.menuTitle);
 
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: Colors.black87,
+      margin: const EdgeInsets.only(bottom: 12), // Add margin between cards if multiple
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -1102,7 +1495,7 @@ class _TodaysWorkoutSection extends StatelessWidget {
                 const Text("Today's Workout",
                     style: TextStyle(color: Colors.white70, fontSize: 16)),
                 const Spacer(),
-                Text(DateFormat('MMM d').format(todaysSchedule.scheduledDate),
+                Text(DateFormat('MMM d').format(schedule.scheduledDate),
                     style: const TextStyle(color: Colors.white70, fontSize: 16)),
               ],
             ),
@@ -1115,7 +1508,7 @@ class _TodaysWorkoutSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                todaysSchedule.menuTitle,
+                schedule.menuTitle,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1124,14 +1517,14 @@ class _TodaysWorkoutSection extends StatelessWidget {
               ),
             ),
             // workout_detailsがあれば表示（重量・セット数）
-            if (todaysSchedule.workoutDetails != null && todaysSchedule.workoutDetails!.isNotEmpty) ...[
+            if (schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
                   const Icon(Icons.fitness_center, color: Colors.white70, size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    todaysSchedule.workoutDetails!,
+                    schedule.workoutDetails!,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -1161,6 +1554,7 @@ class _TodaysWorkoutSection extends StatelessWidget {
     );
   }
 }
+
 
 class _UpcomingWorkouts extends StatelessWidget {
   final List<WorkoutSchedule> schedules;
@@ -1295,34 +1689,51 @@ class _ScheduleCard extends StatelessWidget {
                 ],
               ),
             ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'complete') {
-                  onComplete(schedule.id);
-                } else if (value == 'edit') {
-                  onEdit(schedule.id);
-                } else if (value == 'delete') {
-                  onDelete(schedule.id);
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
-                  value: 'complete',
-                  child: Text('Mark as Complete'),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'edit',
-                  child: Text('Edit'),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'delete',
-                  child: Text('Delete'),
-                ),
-              ],
-            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class AppBottomNavigationBar extends StatelessWidget {
+  final int currentIndex;
+  final void Function(int) onTap;
+
+  const AppBottomNavigationBar({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomNavigationBar(
+      items: const <BottomNavigationBarItem>[
+        BottomNavigationBarItem(
+          icon: Icon(Icons.dashboard_rounded),
+          label: 'Dashboard',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.fitness_center_rounded),
+          label: 'Workouts',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.bar_chart_rounded),
+          label: 'Progress',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.history_rounded),
+          label: 'Logs',
+        ),
+      ],
+      currentIndex: currentIndex,
+      backgroundColor: Colors.white,
+      selectedItemColor: Theme.of(context).colorScheme.primary,
+      unselectedItemColor: Colors.grey,
+      onTap: onTap,
+      type: BottomNavigationBarType.fixed,
+      showUnselectedLabels: true,
     );
   }
 }
