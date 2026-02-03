@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(dir:*)",
+      "Bash(powershell -Command \"Get-ChildItem ''C:\\\\src\\\\training''\")",
+      "Bash(powershell -Command \"Get-ChildItem ''C:\\\\src\\\\training\\\\backend'' -Recurse -Name\")",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(powershell -Command \"cd ''C:\\\\src\\\\training''; docker-compose down -v; docker-compose up -d\")",
+      "Bash(powershell -Command \"cd ''C:\\\\src\\\\training''; docker-compose restart backend\")"
+    ]
+  }
+}

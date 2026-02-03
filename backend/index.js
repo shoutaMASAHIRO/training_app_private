@@ -65,7 +65,30 @@ async function createTables() {
         user_id INTEGER NOT NULL REFERENCES users(id),
         menu_id INTEGER NOT NULL REFERENCES menus(id),
         scheduled_date DATE NOT NULL,
-        is_completed BOOLEAN DEFAULT false
+        is_completed BOOLEAN DEFAULT false,
+        workout_details TEXT
+    );
+    `,
+    // workout_detailsカラムが既存テーブルにない場合は追加
+    `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                     WHERE table_name='workout_schedules' AND column_name='workout_details') THEN
+        ALTER TABLE workout_schedules ADD COLUMN workout_details TEXT;
+      END IF;
+    END $$;
+    `,
+    `
+    CREATE TABLE IF NOT EXISTS workout_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL DEFAULT 1,
+        completed_date DATE NOT NULL,
+        menu_title VARCHAR(255) NOT NULL,
+        workout_details TEXT,
+        success_count INTEGER DEFAULT 0,
+        fail_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
     `,
     `
@@ -93,40 +116,30 @@ async function createTables() {
 
 // seed mock data
 async function seedData() {
-  const { rowCount: userCo } = await pool.query('SELECT id FROM users WHERE id = 1');
-  if (userCo === 0) {
-    const hashed = await bcrypt.hash('password', 10);
-    await pool.query('INSERT INTO users(id, username, password) VALUES ($1, $2, $3)', [1, 'user1', hashed]);
-    console.log('Mock user "user1" created.');
-  }
+  // デフォルトユーザーは作成しない（ユーザー自身で登録する）
 
+  // テンプレートメニューを作成（creator_idはNULL）
   const { rowCount: menuCo } = await pool.query('SELECT id FROM menus');
   if (menuCo === 0) {
     await pool.query(
       `INSERT INTO menus(id, creator_id, title, concept, difficulty, is_template, is_public) VALUES
-        (1, 1, 'Full Body Workout', 'A balanced workout for the whole body.', 'Intermediate', true, true),
-        (2, 1, 'Leg Day Special', 'Intensive leg training.', 'Advanced', false, true);`
+        (1, NULL, 'Smolov Jr.', '3-week high frequency strength program', 'Advanced', true, true),
+        (2, NULL, '10x10', 'German Volume Training', 'Intermediate', true, true);`
     );
-    console.log('Mock menus created.');
+    console.log('Template menus created.');
   }
 
-  const { rowCount: scheduleCo } = await pool.query('SELECT id FROM workout_schedules');
-  if (scheduleCo === 0) {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
+  // Smolov Jr.メニューが存在しない場合は追加
+  const { rowCount: smolovCheck } = await pool.query("SELECT id FROM menus WHERE title = 'Smolov Jr.'");
+  if (smolovCheck === 0) {
     await pool.query(
-      `INSERT INTO workout_schedules(user_id, menu_id, scheduled_date, is_completed) VALUES
-        (1, 1, $1, false),
-        (1, 2, $2, false),
-        (1, 1, $3, true);`,
-      [today, tomorrow, yesterday]
+      `INSERT INTO menus(creator_id, title, concept, difficulty, is_template, is_public) VALUES
+        (NULL, 'Smolov Jr.', '3-week high frequency strength program', 'Advanced', true, true);`
     );
-    console.log('Mock schedules created.');
+    console.log('Smolov Jr. menu created.');
   }
+
+  // デフォルトスケジュールは作成しない（ユーザーがSmolov Jr.等を登録する）
 
   const { rowCount: tokenTypeCo } = await pool.query('SELECT id FROM token_types');
   if (tokenTypeCo === 0) {
@@ -137,14 +150,7 @@ async function seedData() {
     console.log('Mock token types created.');
   }
 
-  const { rowCount: tokenLogCo } = await pool.query('SELECT id FROM token_logs');
-  if (tokenLogCo === 0) {
-    await pool.query(
-      `INSERT INTO token_logs(user_id, token_type_id, amount) VALUES
-        (1, 1, 10), (1, 1, 10), (1, 2, 50);`
-    );
-    console.log('Mock token logs created.');
-  }
+  // デフォルトのtoken_logsは作成しない（ユーザー登録後に作成される）
 }
 
 // health endpoint
@@ -216,12 +222,13 @@ app.post('/login', async (req, res) => {
 app.get('/schedules', async (req, res) => {
   try {
     const query = `
-      SELECT 
-        ws.id, 
-        ws.scheduled_date, 
-        ws.is_completed, 
-        m.title as menu_title, 
-        m.difficulty as menu_difficulty 
+      SELECT
+        ws.id,
+        ws.scheduled_date,
+        ws.is_completed,
+        m.title as menu_title,
+        m.difficulty as menu_difficulty,
+        ws.workout_details
       FROM workout_schedules ws
       JOIN menus m ON ws.menu_id = m.id
       WHERE ws.user_id = 1 -- Mock user_id
@@ -266,6 +273,151 @@ app.delete('/schedules/:id', async (req, res) => {
     } catch(err) {
         console.error(`Error deleting schedule ${id}:`, err);
         res.status(500).json({ message: 'Error deleting schedule' });
+    }
+});
+
+// POST /schedules - 新しいスケジュールを追加
+app.post('/schedules', async (req, res) => {
+    const { scheduled_date, menu_title, menu_difficulty, workout_details } = req.body;
+
+    if (!scheduled_date || !menu_title) {
+        return res.status(400).json({ message: 'scheduled_date and menu_title are required' });
+    }
+
+    try {
+        // メニューをタイトルで検索、なければ作成
+        let menuResult = await pool.query('SELECT id FROM menus WHERE title = $1', [menu_title]);
+
+        let menuId;
+        if (menuResult.rows.length === 0) {
+            // メニューが存在しない場合は作成
+            const insertMenu = await pool.query(
+                `INSERT INTO menus(creator_id, title, difficulty, is_template, is_public)
+                 VALUES (1, $1, $2, true, true) RETURNING id`,
+                [menu_title, menu_difficulty || 'Intermediate']
+            );
+            menuId = insertMenu.rows[0].id;
+            console.log(`Created new menu: ${menu_title} with id ${menuId}`);
+        } else {
+            menuId = menuResult.rows[0].id;
+        }
+
+        // スケジュールを挿入
+        const insertSchedule = await pool.query(
+            `INSERT INTO workout_schedules(user_id, menu_id, scheduled_date, is_completed, workout_details)
+             VALUES (1, $1, $2, false, $3) RETURNING id, scheduled_date, is_completed, workout_details`,
+            [menuId, scheduled_date, workout_details || null]
+        );
+
+        const newSchedule = insertSchedule.rows[0];
+        res.status(201).json({
+            id: newSchedule.id,
+            scheduled_date: newSchedule.scheduled_date,
+            is_completed: newSchedule.is_completed,
+            menu_title: menu_title,
+            menu_difficulty: menu_difficulty || 'Intermediate',
+            workout_details: newSchedule.workout_details
+        });
+    } catch (err) {
+        console.error('Error creating schedule:', err);
+        res.status(500).json({ message: 'Error creating schedule', error: err.message });
+    }
+});
+
+// DELETE /schedules/by-menu/:menuTitle - 特定メニューのスケジュールを一括削除
+app.delete('/schedules/by-menu/:menuTitle', async (req, res) => {
+    const { menuTitle } = req.params;
+    try {
+        // メニューIDを取得
+        const menuResult = await pool.query('SELECT id FROM menus WHERE title = $1', [menuTitle]);
+        if (menuResult.rows.length === 0) {
+            return res.status(200).json({ message: 'No schedules to delete', deleted: 0 });
+        }
+
+        const menuId = menuResult.rows[0].id;
+        const { rowCount } = await pool.query(
+            'DELETE FROM workout_schedules WHERE menu_id = $1 AND user_id = 1',
+            [menuId]
+        );
+
+        res.status(200).json({ message: 'Schedules deleted successfully', deleted: rowCount });
+    } catch (err) {
+        console.error(`Error deleting schedules for menu ${menuTitle}:`, err);
+        res.status(500).json({ message: 'Error deleting schedules' });
+    }
+});
+
+// --- Workout Logs API ---
+// GET /logs - ワークアウトログ一覧取得
+app.get('/logs', async (req, res) => {
+    try {
+        const query = `
+            SELECT id, completed_date, menu_title, workout_details, success_count, fail_count, created_at
+            FROM workout_logs
+            WHERE user_id = 1
+            ORDER BY completed_date DESC, created_at DESC;
+        `;
+        const { rows } = await pool.query(query);
+        res.status(200).json(rows);
+    } catch (err) {
+        console.error('Error fetching logs:', err);
+        res.status(500).json({ message: 'Error fetching logs' });
+    }
+});
+
+// POST /logs - ワークアウトログ追加
+app.post('/logs', async (req, res) => {
+    const { completed_date, menu_title, workout_details, success_count, fail_count } = req.body;
+
+    if (!completed_date || !menu_title) {
+        return res.status(400).json({ message: 'completed_date and menu_title are required' });
+    }
+
+    try {
+        const insertLog = await pool.query(
+            `INSERT INTO workout_logs(user_id, completed_date, menu_title, workout_details, success_count, fail_count)
+             VALUES (1, $1, $2, $3, $4, $5)
+             RETURNING id, completed_date, menu_title, workout_details, success_count, fail_count, created_at`,
+            [completed_date, menu_title, workout_details || null, success_count || 0, fail_count || 0]
+        );
+
+        res.status(201).json(insertLog.rows[0]);
+    } catch (err) {
+        console.error('Error creating log:', err);
+        res.status(500).json({ message: 'Error creating log', error: err.message });
+    }
+});
+
+// DELETE /logs/:id - 特定のログを削除
+app.delete('/logs/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { rowCount } = await pool.query(
+            'DELETE FROM workout_logs WHERE id = $1 AND user_id = 1',
+            [id]
+        );
+        if (rowCount === 0) {
+            return res.status(404).json({ message: 'Log not found' });
+        }
+        res.status(200).json({ message: 'Log deleted successfully' });
+    } catch (err) {
+        console.error(`Error deleting log ${id}:`, err);
+        res.status(500).json({ message: 'Error deleting log' });
+    }
+});
+
+// DELETE /logs/by-date/:date - 特定日のログを全削除
+app.delete('/logs/by-date/:date', async (req, res) => {
+    const { date } = req.params;
+    try {
+        const { rowCount } = await pool.query(
+            'DELETE FROM workout_logs WHERE completed_date = $1 AND user_id = 1',
+            [date]
+        );
+        res.status(200).json({ message: 'Logs deleted successfully', deleted: rowCount });
+    } catch (err) {
+        console.error(`Error deleting logs for date ${date}:`, err);
+        res.status(500).json({ message: 'Error deleting logs' });
     }
 });
 
