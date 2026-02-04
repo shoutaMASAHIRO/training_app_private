@@ -191,6 +191,46 @@ class DatabaseService {
     }
   }
 
+  /// 全スケジュールを削除
+  Future<void> deleteAllSchedules() async {
+    try {
+      final db = await _dbHelper.database;
+      final count = await db.delete(
+        DatabaseHelper.tableSchedules,
+      );
+      debugPrint('[DB] Deleted $count all schedules');
+    } catch (e) {
+      debugPrint('[DB] Error deleting all schedules: $e');
+      throw Exception('Failed to delete all schedules: $e');
+    }
+  }
+
+  /// 特定メニュー名とセッションタイトルに合致するスケジュールを一括削除
+  Future<void> deleteSchedulesByMenuTitleAndSessionTitle(String menuTitle, String? sessionTitle) async {
+    try {
+      final db = await _dbHelper.database;
+      int count;
+      if (sessionTitle != null && sessionTitle.isNotEmpty) {
+        count = await db.delete(
+          DatabaseHelper.tableSchedules,
+          where: '${DatabaseHelper.colMenuTitle} = ? AND ${DatabaseHelper.colSessionTitle} = ?',
+          whereArgs: [menuTitle, sessionTitle],
+        );
+      } else {
+        // sessionTitle がない場合は menuTitle のみで削除（以前の挙動に戻す）
+        count = await db.delete(
+          DatabaseHelper.tableSchedules,
+          where: '${DatabaseHelper.colMenuTitle} = ? AND ${DatabaseHelper.colSessionTitle} IS NULL',
+          whereArgs: [menuTitle],
+        );
+      }
+      debugPrint('[DB] Deleted $count schedules with menuTitle: $menuTitle and sessionTitle: $sessionTitle');
+    } catch (e) {
+      debugPrint('[DB] Error deleting schedules: $e');
+      throw Exception('Failed to delete schedules: $e');
+    }
+  }
+
   // ==================== ワークアウトログ ====================
 
   /// ログ一覧取得

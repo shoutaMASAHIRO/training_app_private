@@ -5,6 +5,7 @@ class WorkoutSchedule {
   final String menuTitle;
   final String menuDifficulty;
   final String? workoutDetails; // 例: "6x6 @ 70.0kg"
+  final String? sessionTitle; // その日やるトレーニング名
 
   WorkoutSchedule({
     required this.id,
@@ -13,6 +14,7 @@ class WorkoutSchedule {
     required this.menuTitle,
     required this.menuDifficulty,
     this.workoutDetails,
+    this.sessionTitle,
   });
 
   // JSON用（後方互換性のため維持）
@@ -24,6 +26,7 @@ class WorkoutSchedule {
       menuTitle: json['menu_title'],
       menuDifficulty: json['menu_difficulty'],
       workoutDetails: json['workout_details'],
+      sessionTitle: json['session_title'],
     );
   }
 
@@ -34,6 +37,7 @@ class WorkoutSchedule {
       'menu_title': menuTitle,
       'menu_difficulty': menuDifficulty,
       'workout_details': workoutDetails,
+      'session_title': sessionTitle,
     };
   }
 
@@ -46,6 +50,7 @@ class WorkoutSchedule {
       menuTitle: map['menu_title'] as String,
       menuDifficulty: map['menu_difficulty'] as String,
       workoutDetails: map['workout_details'] as String?,
+      sessionTitle: map['session_title'] as String?,
     );
   }
 
@@ -57,6 +62,7 @@ class WorkoutSchedule {
       'menu_title': menuTitle,
       'menu_difficulty': menuDifficulty,
       'workout_details': workoutDetails,
+      'session_title': sessionTitle,
     };
   }
 }

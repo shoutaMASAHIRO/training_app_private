@@ -154,7 +154,7 @@ class _ProgressScreenState extends State<ProgressScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.fitness_center,
-                size: 64, color: colorScheme.outline.withOpacity(0.5)),
+                size: 64, color: colorScheme.outline.withAlpha((255 * 0.5).round())),
             const SizedBox(height: 16),
             Text(
               'トレーニング履歴がありません',
@@ -166,7 +166,7 @@ class _ProgressScreenState extends State<ProgressScreen>
               'ワークアウトを完了すると\nここに進捗が表示されます',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: colorScheme.outline.withOpacity(0.7)),
+                  ?.copyWith(color: colorScheme.outline.withAlpha((255 * 0.7).round())),
             ),
           ],
         ),
@@ -241,7 +241,7 @@ class _ProgressScreenState extends State<ProgressScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.show_chart,
-                          size: 48, color: colorScheme.outline.withOpacity(0.5)),
+                          size: 48, color: colorScheme.outline.withAlpha((255 * 0.5).round())),
                       const SizedBox(height: 12),
                       Text(
                         'このメニューの重量データがありません',
@@ -305,9 +305,9 @@ class _ProgressScreenState extends State<ProgressScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withOpacity(0.3),
+        color: colorScheme.primaryContainer.withAlpha((255 * 0.3).round()),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
+        border: Border.all(color: colorScheme.primary.withAlpha((255 * 0.3).round())),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -317,7 +317,7 @@ class _ProgressScreenState extends State<ProgressScreen>
               Text(
                 DateFormat('yyyy/MM/dd').format(date),
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurface.withOpacity(0.7),
+                  color: colorScheme.onSurface.withAlpha((255 * 0.7).round()),
                 ),
               ),
               const SizedBox(height: 4),
@@ -367,7 +367,7 @@ class _ProgressScreenState extends State<ProgressScreen>
           horizontalInterval: 5,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: colorScheme.outline.withOpacity(0.2),
+              color: colorScheme.outline.withAlpha((255 * 0.2).round()),
               strokeWidth: 1,
               dashArray: [5, 5],
             );
@@ -390,7 +390,7 @@ class _ProgressScreenState extends State<ProgressScreen>
                         DateFormat('M/d').format(sortedDates[index]),
                         style: TextStyle(
                           fontSize: 10,
-                          color: colorScheme.onSurface.withOpacity(0.7),
+                          color: colorScheme.onSurface.withAlpha((255 * 0.7).round()),
                         ),
                       ),
                     ),
@@ -410,7 +410,7 @@ class _ProgressScreenState extends State<ProgressScreen>
                   '${value.toInt()}kg',
                   style: TextStyle(
                     fontSize: 10,
-                    color: colorScheme.onSurface.withOpacity(0.7),
+                    color: colorScheme.onSurface.withAlpha((255 * 0.7).round()),
                   ),
                 );
               },
@@ -437,8 +437,8 @@ class _ProgressScreenState extends State<ProgressScreen>
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  colorScheme.primary.withOpacity(0.3),
-                  colorScheme.primary.withOpacity(0.05),
+                  colorScheme.primary.withAlpha((255 * 0.3).round()),
+                  colorScheme.primary.withAlpha((255 * 0.05).round()),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -503,7 +503,7 @@ class _ProgressScreenState extends State<ProgressScreen>
             return spotIndexes.map((index) {
               return TouchedSpotIndicatorData(
                 FlLine(
-                  color: colorScheme.primary.withOpacity(0.5),
+                  color: colorScheme.primary.withAlpha((255 * 0.5).round()),
                   strokeWidth: 2,
                   dashArray: [5, 5],
                 ),
@@ -541,7 +541,7 @@ class _ProgressScreenState extends State<ProgressScreen>
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: colorScheme.surfaceContainerHighest.withAlpha((255 * 0.5).round()),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -591,7 +591,7 @@ class _ProgressScreenState extends State<ProgressScreen>
         Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+            color: theme.colorScheme.onSurface.withAlpha((255 * 0.6).round()),
           ),
         ),
       ],

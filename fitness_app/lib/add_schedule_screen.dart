@@ -71,41 +71,6 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     }
   }
 
-  void _showWorkoutSelectionDialog() async {
-    final String? selectedWorkout = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Select Workout Menu'),
-          content: WorkoutSelectionDialog(
-            onSelectWorkout: (workoutName) {
-              Navigator.of(context).pop(workoutName);
-            },
-          ),
-        );
-      },
-    );
-
-    if (selectedWorkout != null) {
-      if (selectedWorkout == 'Smolov Jr.' || selectedWorkout == '10x10') {
-        // プログラム系は詳細画面に遷移（選択した日付を渡す）
-        if (mounted) {
-          Navigator.pushNamed(
-            context,
-            '/workout_detail',
-            arguments: {
-              'workoutName': selectedWorkout,
-              'startDate': _selectedDate,
-            },
-          );
-        }
-      } else {
-        // 単発ワークアウトの場合はここで設定
-        _workoutNameController.text = selectedWorkout;
-      }
-    }
-  }
-
   Future<void> _saveSchedule() async {
     if (_workoutNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

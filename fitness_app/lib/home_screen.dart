@@ -2,7 +2,6 @@ import 'package:fitness_app/progress_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fitness_app/logs_screen.dart';
 import 'package:intl/intl.dart';
-import 'package:collection/collection.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import 'package:fitness_app/services/database_service.dart';
@@ -470,12 +469,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             );
                           } else if (isToday) {
                             decoration = BoxDecoration(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withAlpha((255 * 0.2).round()),
                               borderRadius: BorderRadius.circular(8.0),
                             );
                           } else if (isHovered) {
                             decoration = BoxDecoration(
-                              color: Colors.grey.withOpacity(0.3),
+                              color: Colors.grey.withAlpha((255 * 0.3).round()),
                               borderRadius: BorderRadius.circular(8.0),
                             );
                           } else {
@@ -514,6 +513,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // メニュー管理セクション
                 _buildMenuManagementSection(schedules),
                 const SizedBox(height: 24),
+                // 全てのスケジュールを削除するボタン
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _confirmDeleteAllSchedules,
+                    icon: Icon(Icons.delete_forever, color: Colors.white),
+                    label: Text('全てのスケジュールを削除'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24), // スペーサーを追加
                 _UpcomingWorkouts(
                   schedules: upcomingSchedules,
                   onComplete: _completeSchedule,
@@ -529,18 +546,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildMenuManagementSection(List<WorkoutSchedule> schedules) {
-    // 登録済みのメニューを集計
-    final smolovCount = schedules.where((s) => s.menuTitle == 'Smolov Jr.' && !s.isCompleted).length;
-    final tenByTenCount = schedules.where((s) => s.menuTitle == '10x10' && !s.isCompleted).length;
-    final otherSchedules = schedules.where((s) =>
-      s.menuTitle != 'Smolov Jr.' &&
-      s.menuTitle != '10x10' &&
-      !s.isCompleted
-    ).toList();
+    // 未完了のスケジュールのみを対象とする
+    final activeSchedules = schedules.where((s) => !s.isCompleted).toList();
 
     // 何も登録されていない場合は表示しない
-    if (smolovCount == 0 && tenByTenCount == 0 && otherSchedules.isEmpty) {
+    if (activeSchedules.isEmpty) {
       return const SizedBox.shrink();
+    }
+
+    // (menuTitle, sessionTitle) の組み合わせでグループ化
+    final Map<String, List<WorkoutSchedule>> groupedSchedules = {};
+    for (var schedule in activeSchedules) {
+      final key = '${schedule.menuTitle}-${schedule.sessionTitle ?? 'NULL'}';
+      if (!groupedSchedules.containsKey(key)) {
+        groupedSchedules[key] = [];
+      }
+      groupedSchedules[key]!.add(schedule);
     }
 
     return Column(
@@ -557,46 +578,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ),
-        if (smolovCount > 0)
-          _buildMenuCard(
-            name: 'Smolov Jr.',
-            count: smolovCount,
-            color: Colors.red,
-            icon: Icons.trending_up,
-            onDelete: () => _confirmDeleteMenu('Smolov Jr.', smolovCount),
-          ),
-        if (tenByTenCount > 0)
-          _buildMenuCard(
-            name: '10x10',
-            count: tenByTenCount,
-            color: Colors.blue,
-            icon: Icons.grid_view,
-            onDelete: () => _confirmDeleteMenu('10x10', tenByTenCount),
-          ),
-        ...otherSchedules
-            .map((s) => s.menuTitle)
-            .toSet()
-            .map((menuTitle) {
-              final count = otherSchedules.where((s) => s.menuTitle == menuTitle).length;
-              return _buildMenuCard(
-                name: menuTitle,
-                count: count,
-                color: Colors.grey.shade700,
-                icon: Icons.fitness_center,
-                onDelete: () => _confirmDeleteMenu(menuTitle, count),
-              );
-            }),
+        ...groupedSchedules.entries.map((entry) {
+          final firstScheduleInGroup = entry.value.first;
+          final menuTitle = firstScheduleInGroup.menuTitle;
+          final sessionTitle = firstScheduleInGroup.sessionTitle;
+          final count = entry.value.length; // グループ内のスケジュール数
+
+          Color color;
+          IconData icon;
+          switch (menuTitle) {
+            case 'Smolov Jr.':
+              color = Colors.red;
+              icon = Icons.trending_up;
+              break;
+            case '10x10':
+              color = Colors.blue;
+              icon = Icons.grid_view;
+              break;
+            default:
+              color = Colors.grey;
+              icon = Icons.fitness_center;
+              break;
+          }
+          return _buildMenuCard(
+            schedule: firstScheduleInGroup, // グループの代表となるスケジュールを渡す
+            icon: icon,
+            color: color,
+            onDelete: () => _confirmDeleteMenu(menuTitle, sessionTitle, count),
+          );
+        }),
       ],
     );
   }
 
   Widget _buildMenuCard({
-    required String name,
-    required int count,
-    required Color color,
-    required IconData icon,
+    required WorkoutSchedule schedule,
+    required IconData icon, // Icon based on menuTitle
+    required Color color, // Color based on menuTitle
     required VoidCallback onDelete,
   }) {
+    String displayName = schedule.sessionTitle ?? schedule.menuTitle;
+    if (schedule.sessionTitle != null && schedule.sessionTitle!.isNotEmpty) {
+      if (schedule.menuTitle != schedule.sessionTitle) { // Avoid "Smolov Jr.: Smolov Jr."
+        displayName = '${schedule.menuTitle}: ${schedule.sessionTitle}';
+      }
+    } else if (schedule.menuDifficulty.isNotEmpty) {
+      displayName = '${schedule.menuTitle}: ${schedule.menuDifficulty}';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: Card(
@@ -626,20 +655,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
+                      displayName,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '残り $count 回',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
+                    if (schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        schedule.workoutDetails!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -684,7 +715,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Future<void> _confirmDeleteMenu(String menuTitle, int count) async {
+  Future<void> _confirmDeleteMenu(String menuTitle, String? sessionTitle, int count) async {
+    final displayName = sessionTitle != null && sessionTitle.isNotEmpty
+        ? '$menuTitle: $sessionTitle'
+        : menuTitle;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -697,7 +732,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         content: Text(
-          '$menuTitle の未完了スケジュール $count 件を削除しますか？\n\nこの操作は取り消せません。',
+          '$displayName の未完了スケジュール $count 件を削除しますか？\n\nこの操作は取り消せません。',
         ),
         actions: [
           TextButton(
@@ -718,12 +753,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (confirmed == true) {
       try {
-        await _apiService.deleteSchedulesByMenuTitle(menuTitle);
+        await _apiService.deleteSchedulesByMenuTitleAndSessionTitle(menuTitle, sessionTitle);
         await _refreshData();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('$menuTitle を削除しました'),
+              content: Text('$displayName のスケジュールを削除しました'),
               backgroundColor: Colors.green,
             ),
           );
@@ -761,6 +796,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ).then((_) => _refreshData());
       }
     });
+  }
+
+  Future<void> _confirmDeleteAllSchedules() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            const Text('全削除の確認'),
+          ],
+        ),
+        content: const Text(
+          '本当に全ての登録済みスケジュールを削除しますか？\n\nこの操作は取り消せません。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'キャンセル',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('全て削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _apiService.deleteAllSchedules();
+        await _refreshData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('全てのスケジュールを削除しました'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('削除に失敗しました: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }
 
@@ -898,6 +990,7 @@ class WorkoutDetailScreen extends StatefulWidget {
 class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   final TextEditingController _maxWeightController = TextEditingController();
   final TextEditingController _currentWeightController = TextEditingController();
+  final TextEditingController _exerciseKindController = TextEditingController(); // New controller
   final DatabaseService _apiService = DatabaseService();
   List<Map<String, dynamic>>? _calculatedProgram;
   bool _isRegistering = false;
@@ -937,11 +1030,14 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   void dispose() {
     _maxWeightController.dispose();
     _currentWeightController.dispose();
+    _exerciseKindController.dispose(); // Dispose new controller
     super.dispose();
   }
 
   // 10x10 プログラムを登録
   Future<void> _register10x10Program() async {
+    debugPrint('[LOG] _register10x10Program called.');
+    debugPrint('[LOG] Current Weight: ${_currentWeightController.text}, Exercise Kind: ${_exerciseKindController.text}');
     final startWeight = double.tryParse(_currentWeightController.text);
     if (startWeight == null || startWeight <= 0) {
       if (mounted) {
@@ -958,11 +1054,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
     try {
       debugPrint('=== 10x10 登録開始 ===');
-
-      // 既存の10x10スケジュールを削除
-      debugPrint('既存スケジュール削除中...');
-      await _apiService.deleteSchedulesByMenuTitle('10x10');
-      debugPrint('既存スケジュール削除完了');
+      // 既存の10x10スケジュールを削除しないように変更
 
       final startDate = DateUtils.dateOnly(_startDate);
       final List<WorkoutSchedule> schedules = [];
@@ -979,12 +1071,15 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           menuTitle: '10x10',
           menuDifficulty: 'Day ${i + 1}',
           workoutDetails: workoutDetails,
+          sessionTitle: _exerciseKindController.text.isNotEmpty
+              ? _exerciseKindController.text
+              : null,
         ));
         debugPrint('スケジュール追加: ${scheduledDate.toIso8601String()} - $workoutDetails');
       }
 
       // 一括登録
-      debugPrint('APIに${schedules.length}件のスケジュールを登録中...');
+      debugPrint('APIに${schedules.length}件のスケジュールを登録中... Schedules: ${schedules.map((s) => s.toMap()).toList()}');
       await _apiService.addSchedules(schedules);
       debugPrint('=== 登録完了 ===');
 
@@ -1019,6 +1114,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
   // カレンダーにプログラムを登録
   Future<void> _registerProgram() async {
+    debugPrint('[LOG] _registerProgram called.');
+    debugPrint('[LOG] Max Weight: ${_maxWeightController.text}, Exercise Kind: ${_exerciseKindController.text}');
     if (_calculatedProgram == null) return;
 
     setState(() {
@@ -1027,11 +1124,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
     try {
       debugPrint('=== Smolov Jr. 登録開始 ===');
-
-      // 既存のSmolov Jr.スケジュールを削除
-      debugPrint('既存スケジュール削除中...');
-      await _apiService.deleteSchedulesByMenuTitle('Smolov Jr.');
-      debugPrint('既存スケジュール削除完了');
+      // 既存のSmolov Jr.スケジュールを削除しないように変更
 
       // 選択した日付を起点として各ワークアウト日を計算
       final startDate = DateUtils.dateOnly(_startDate);
@@ -1053,10 +1146,12 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             id: 0, // サーバー側で生成される
             scheduledDate: scheduledDate,
             isCompleted: false,
-            menuTitle: 'Smolov Jr.',
-            menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}',
-            workoutDetails: workoutDetails,
-          ));
+                      menuTitle: 'Smolov Jr.',
+                      menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}',
+                      workoutDetails: workoutDetails,
+                      sessionTitle: _exerciseKindController.text.isNotEmpty
+                          ? _exerciseKindController.text
+                          : null,          ));
 
           debugPrint('スケジュール追加: ${scheduledDate.toIso8601String()} - $workoutDetails');
 
@@ -1070,7 +1165,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       }
 
       // 一括登録
-      debugPrint('APIに${schedules.length}件のスケジュールを登録中...');
+      debugPrint('APIに${schedules.length}件のスケジュールを登録中... Schedules: ${schedules.map((s) => s.toMap()).toList()}');
       await _apiService.addSchedules(schedules);
       debugPrint('=== 登録完了 ===');
 
@@ -1102,7 +1197,6 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       }
     }
   }
-
   Future<void> _selectStartDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -1253,6 +1347,48 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                       TextButton(
                         onPressed: _selectStartDate,
                         child: const Text('変更'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // 種目名入力セクション
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '種目名を入力',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _exerciseKindController,
+                        decoration: InputDecoration(
+                          hintText: '例: スクワット',
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.blue),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
                       ),
                     ],
                   ),
@@ -1448,6 +1584,49 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                     TextButton(
                       onPressed: _selectStartDate,
                       child: const Text('変更'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 種目名入力セクション
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade300),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '種目名を入力',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _exerciseKindController,
+                      decoration: InputDecoration(
+                        hintText: '例: スクワット',
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.red),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
                     ),
                   ],
                 ),
@@ -1994,6 +2173,16 @@ class _ScheduleCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // sessionTitleがあれば表示
+                      if (schedule.sessionTitle != null && schedule.sessionTitle!.isNotEmpty)
+                        Text(
+                          schedule.sessionTitle!,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
                     ],
                   ),
                   // workout_detailsがあれば表示（重量・セット数など）

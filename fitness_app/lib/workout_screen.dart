@@ -169,10 +169,21 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                       ),
                     ),
                   ),
-                  if (_todaysSchedule!.workoutDetails != null) ...[
+                  if (_todaysSchedule.sessionTitle != null && _todaysSchedule.sessionTitle!.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
-                      _todaysSchedule!.workoutDetails!,
+                      _todaysSchedule.sessionTitle!,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                  if (_todaysSchedule.workoutDetails != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _todaysSchedule.workoutDetails!,
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -340,7 +351,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             onPressed: () async {
               try {
                 // スケジュールを完了にする
-                await _apiService.completeSchedule(_todaysSchedule!.id);
+                await _apiService.completeSchedule(_todaysSchedule.id);
 
                 // ログを保存
                 final log = WorkoutLog(
@@ -433,6 +444,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
+                  if (_todaysSchedule.sessionTitle != null && _todaysSchedule.sessionTitle!.isNotEmpty) ...[
+                    Text(
+                      _todaysSchedule.sessionTitle!,
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   Text(
                     _todaysSchedule.menuTitle,
                     style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),

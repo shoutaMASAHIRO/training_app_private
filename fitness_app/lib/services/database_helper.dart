@@ -25,6 +25,7 @@ class DatabaseHelper {
   static const String colMenuTitle = 'menu_title';
   static const String colMenuDifficulty = 'menu_difficulty';
   static const String colWorkoutDetails = 'workout_details';
+  static const String colSessionTitle = 'session_title';
 
   // workout_logsテーブルのカラム
   static const String colLogId = 'id';
@@ -54,9 +55,19 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    debugPrint('[DB] Upgrading database from version $oldVersion to $newVersion');
+    if (oldVersion < 2) {
+      // Add the new column 'session_title' to workout_schedules table
+      await db.execute('ALTER TABLE $tableSchedules ADD COLUMN $colSessionTitle TEXT;');
+      debugPrint('[DB] Added column $colSessionTitle to $tableSchedules');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -80,7 +91,8 @@ class DatabaseHelper {
         $colIsCompleted INTEGER NOT NULL DEFAULT 0,
         $colMenuTitle TEXT NOT NULL,
         $colMenuDifficulty TEXT NOT NULL,
-        $colWorkoutDetails TEXT
+        $colWorkoutDetails TEXT,
+        $colSessionTitle TEXT
       )
     ''');
     debugPrint('[DB] Created table: $tableSchedules');
