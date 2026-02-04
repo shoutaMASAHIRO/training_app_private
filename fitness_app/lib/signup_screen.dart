@@ -1,7 +1,5 @@
-import 'package:fitness_app/services/api_config.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert'; // For json.encode/decode
-import 'package:http/http.dart' as http; // For making HTTP requests
+import 'package:fitness_app/services/database_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -15,15 +13,28 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
+  final DatabaseService _dbService = DatabaseService();
 
   bool _isLoading = false;
   String _errorMessage = '';
   String _successMessage = '';
 
   Future<void> _signup() async {
-    debugPrint('SIGNUP: tapped -> POST $apiBaseUrl/register');
+    debugPrint('SIGNUP: tapped');
 
-    if (_passwordController.text != _confirmPasswordController.text) {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (username.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter username and password.';
+        _successMessage = '';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
       setState(() {
         _errorMessage = 'Passwords do not match.';
         _successMessage = '';
@@ -38,30 +49,22 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      final uri = Uri.parse('$apiBaseUrl/register');
-      debugPrint('SIGNUP: uri=$uri');
+      // ユーザー名の重複確認
+      final exists = await _dbService.usernameExists(username);
+      if (exists) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Username already exists.';
+          });
+        }
+        return;
+      }
 
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'username': _usernameController.text,
-          'password': _passwordController.text,
-        }),
-      );
-
-      debugPrint('SIGNUP: status=${response.statusCode}');
-      debugPrint('SIGNUP: body=${response.body}');
+      final success = await _dbService.register(username, password);
 
       if (!mounted) return;
 
-      // サーバがJSONを返さない可能性にも備えて安全に処理
-      Map<String, dynamic> responseBody = {};
-      try {
-        responseBody = json.decode(response.body) as Map<String, dynamic>;
-      } catch (_) {}
-
-      if (response.statusCode == 201) {
+      if (success) {
         setState(() {
           _successMessage = 'Registration successful! Redirecting to login...';
         });
@@ -72,15 +75,8 @@ class _SignupScreenState extends State<SignupScreen> {
           }
         });
       } else {
-        String message = 'Registration failed.';
-        if (responseBody.isNotEmpty) {
-          message = (responseBody['message'] ?? message).toString();
-        } else if (response.body.isNotEmpty) {
-          message = response.body; // JSONじゃない場合も一応出す
-        }
-
         setState(() {
-          _errorMessage = message;
+          _errorMessage = 'Registration failed. Please try again.';
         });
       }
     } catch (e, st) {
@@ -89,7 +85,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (mounted) {
         setState(() {
-          _errorMessage = 'Network error or server unavailable.';
+          _errorMessage = 'An error occurred. Please try again.';
         });
       }
     } finally {

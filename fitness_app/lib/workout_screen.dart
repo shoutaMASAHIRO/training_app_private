@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:fitness_app/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
-import 'package:fitness_app/services/api_service.dart';
+import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_log.dart';
 
 class WorkoutScreen extends StatefulWidget {
@@ -14,7 +14,7 @@ class WorkoutScreen extends StatefulWidget {
 }
 
 class _WorkoutScreenState extends State<WorkoutScreen> {
-  final ApiService _apiService = ApiService();
+  final DatabaseService _apiService = DatabaseService();
   late final WorkoutSchedule _todaysSchedule;
   int _selectedIndex = 0; // Default to 'Dashboard'
 

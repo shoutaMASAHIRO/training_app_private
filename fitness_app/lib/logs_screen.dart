@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:fitness_app/services/api_service.dart';
+import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_log.dart'; // Add this import
 
 class LogsScreen extends StatefulWidget {
@@ -12,7 +12,7 @@ class LogsScreen extends StatefulWidget {
 }
 
 class _LogsScreenState extends State<LogsScreen> {
-  final ApiService _apiService = ApiService();
+  final DatabaseService _apiService = DatabaseService();
   List<WorkoutLog> _logs = []; // Change type here
   bool _isLoading = true;
 

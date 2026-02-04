@@ -3,7 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
 
-import 'package:fitness_app/services/api_service.dart';
+import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_log.dart';
 
 class ProgressScreen extends StatefulWidget {
@@ -15,7 +15,7 @@ class ProgressScreen extends StatefulWidget {
 
 class _ProgressScreenState extends State<ProgressScreen>
     with SingleTickerProviderStateMixin {
-  final ApiService _apiService = ApiService();
+  final DatabaseService _apiService = DatabaseService();
   String? _selectedMenu;
   List<WorkoutLog> _workoutLogs = [];
   List<String> _availableMenus = [];

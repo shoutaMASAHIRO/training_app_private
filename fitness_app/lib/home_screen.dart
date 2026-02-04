@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
 import 'package:table_calendar/table_calendar.dart';
 
-import 'package:fitness_app/services/api_service.dart';
+import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -95,7 +95,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final ApiService _apiService = ApiService();
+  final DatabaseService _apiService = DatabaseService();
 
   Future<List<WorkoutSchedule>>? _schedulesData;
   CalendarFormat _calendarFormat = CalendarFormat.month;
@@ -139,8 +139,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _selectedDay = selectedDay;
         _focusedDay = focusedDay;
       });
-      // Navigate to add schedule screen
-      Navigator.pushNamed(context, '/add_schedule').then((_) => _refreshData());
+      // Navigate to add schedule screen with selected date
+      Navigator.pushNamed(
+        context,
+        '/add_schedule',
+        arguments: {'selectedDate': selectedDay},
+      ).then((_) => _refreshData());
     }
   }
 
@@ -193,7 +197,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // --- Navigation ---
   void _navigateToAddSchedule() {
-    Navigator.pushNamed(context, '/add_schedule').then((_) => _refreshData());
+    Navigator.pushNamed(
+      context,
+      '/add_schedule',
+      arguments: {'selectedDate': _selectedDay ?? DateTime.now()},
+    ).then((_) => _refreshData());
   }
 
   Future<void> _adjustNext10x10Workout(
@@ -502,6 +510,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                // メニュー管理セクション
+                _buildMenuManagementSection(schedules),
                 const SizedBox(height: 24),
                 _UpcomingWorkouts(
                   schedules: upcomingSchedules,
@@ -517,6 +528,219 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildMenuManagementSection(List<WorkoutSchedule> schedules) {
+    // 登録済みのメニューを集計
+    final smolovCount = schedules.where((s) => s.menuTitle == 'Smolov Jr.' && !s.isCompleted).length;
+    final tenByTenCount = schedules.where((s) => s.menuTitle == '10x10' && !s.isCompleted).length;
+    final otherSchedules = schedules.where((s) =>
+      s.menuTitle != 'Smolov Jr.' &&
+      s.menuTitle != '10x10' &&
+      !s.isCompleted
+    ).toList();
+
+    // 何も登録されていない場合は表示しない
+    if (smolovCount == 0 && tenByTenCount == 0 && otherSchedules.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            '登録中のプログラム',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ),
+        if (smolovCount > 0)
+          _buildMenuCard(
+            name: 'Smolov Jr.',
+            count: smolovCount,
+            color: Colors.red,
+            icon: Icons.trending_up,
+            onDelete: () => _confirmDeleteMenu('Smolov Jr.', smolovCount),
+          ),
+        if (tenByTenCount > 0)
+          _buildMenuCard(
+            name: '10x10',
+            count: tenByTenCount,
+            color: Colors.blue,
+            icon: Icons.grid_view,
+            onDelete: () => _confirmDeleteMenu('10x10', tenByTenCount),
+          ),
+        ...otherSchedules
+            .map((s) => s.menuTitle)
+            .toSet()
+            .map((menuTitle) {
+              final count = otherSchedules.where((s) => s.menuTitle == menuTitle).length;
+              return _buildMenuCard(
+                name: menuTitle,
+                count: count,
+                color: Colors.grey.shade700,
+                icon: Icons.fitness_center,
+                onDelete: () => _confirmDeleteMenu(menuTitle, count),
+              );
+            }),
+      ],
+    );
+  }
+
+  Widget _buildMenuCard({
+    required String name,
+    required int count,
+    required Color color,
+    required IconData icon,
+    required VoidCallback onDelete,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // アイコン
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              // メニュー名と件数
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '残り $count 回',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 削除ボタン
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onDelete,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Colors.red.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '削除',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteMenu(String menuTitle, int count) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            const Text('確認'),
+          ],
+        ),
+        content: Text(
+          '$menuTitle の未完了スケジュール $count 件を削除しますか？\n\nこの操作は取り消せません。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'キャンセル',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _apiService.deleteSchedulesByMenuTitle(menuTitle);
+        await _refreshData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$menuTitle を削除しました'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('削除に失敗しました: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   void _onHeaderTapped(BuildContext context, DateTime focusedDay) {
     showDatePicker(
       context: context,
@@ -529,8 +753,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _focusedDay = pickedDate;
           _selectedDay = pickedDate; // Also update the selected day
         });
-        // Navigate to add schedule screen after picking a date from the header
-        Navigator.pushNamed(context, '/add_schedule').then((_) => _refreshData());
+        // Navigate to add schedule screen with selected date
+        Navigator.pushNamed(
+          context,
+          '/add_schedule',
+          arguments: {'selectedDate': pickedDate},
+        ).then((_) => _refreshData());
       }
     });
   }
@@ -572,7 +800,14 @@ class WorkoutsScreen extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: GestureDetector(
             onTap: () {
-              Navigator.pushNamed(context, '/workout_detail', arguments: menuName);
+              Navigator.pushNamed(
+                context,
+                '/workout_detail',
+                arguments: {
+                  'workoutName': menuName,
+                  'startDate': DateTime.now(),
+                },
+              );
             },
             child: Card(
               elevation: 0,
@@ -652,8 +887,9 @@ class WorkoutsScreen extends StatelessWidget {
 // --- Workout Detail Screen ---
 class WorkoutDetailScreen extends StatefulWidget {
   final String workoutName;
+  final DateTime? startDate;
 
-  const WorkoutDetailScreen({super.key, required this.workoutName});
+  const WorkoutDetailScreen({super.key, required this.workoutName, this.startDate});
 
   @override
   State<WorkoutDetailScreen> createState() => _WorkoutDetailScreenState();
@@ -662,10 +898,17 @@ class WorkoutDetailScreen extends StatefulWidget {
 class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   final TextEditingController _maxWeightController = TextEditingController();
   final TextEditingController _currentWeightController = TextEditingController();
-  final ApiService _apiService = ApiService();
+  final DatabaseService _apiService = DatabaseService();
   List<Map<String, dynamic>>? _calculatedProgram;
   bool _isRegistering = false;
   int _selectedIndex = 1; // Default to 'Workouts'
+  late DateTime _startDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDate = widget.startDate ?? DateTime.now();
+  }
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -721,11 +964,11 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       await _apiService.deleteSchedulesByMenuTitle('10x10');
       debugPrint('既存スケジュール削除完了');
 
-      final today = DateUtils.dateOnly(DateTime.now());
+      final startDate = DateUtils.dateOnly(_startDate);
       final List<WorkoutSchedule> schedules = [];
 
       for (int i = 0; i < 10; i++) {
-        final scheduledDate = today.add(Duration(days: i));
+        final scheduledDate = startDate.add(Duration(days: i));
         final weight = startWeight + (i * 2.5);
         final workoutDetails = '10x10 @ ${weight.toStringAsFixed(1)}kg';
 
@@ -790,8 +1033,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       await _apiService.deleteSchedulesByMenuTitle('Smolov Jr.');
       debugPrint('既存スケジュール削除完了');
 
-      // 今日を起点として各ワークアウト日を計算
-      final today = DateUtils.dateOnly(DateTime.now());
+      // 選択した日付を起点として各ワークアウト日を計算
+      final startDate = DateUtils.dateOnly(_startDate);
       final List<WorkoutSchedule> schedules = [];
 
       int dayOffset = 0;
@@ -801,7 +1044,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
         for (int dayIndex = 0; dayIndex < 4; dayIndex++) {
           final dayData = days[dayIndex];
-          final scheduledDate = today.add(Duration(days: dayOffset));
+          final scheduledDate = startDate.add(Duration(days: dayOffset));
 
           final workoutDetails =
               '${dayData['sets']}x${dayData['reps']} @ ${(dayData['weight'] as double).toStringAsFixed(1)}kg';
@@ -857,6 +1100,20 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           _isRegistering = false;
         });
       }
+    }
+  }
+
+  Future<void> _selectStartDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null && picked != _startDate) {
+      setState(() {
+        _startDate = DateUtils.dateOnly(picked);
+      });
     }
   }
 
@@ -963,7 +1220,45 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+              // 開始日表示
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.grey.shade600),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '開始日',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('yyyy年MM月dd日').format(_startDate),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _selectStartDate,
+                        child: const Text('変更'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               // Current weight input section
               Card(
                 elevation: 0,
@@ -1119,7 +1414,46 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+
+            // 開始日表示
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade300),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_today, color: Colors.grey.shade600),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '開始日',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            DateFormat('yyyy年MM月dd日').format(_startDate),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _selectStartDate,
+                      child: const Text('変更'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // 最大重量入力セクション
             Card(

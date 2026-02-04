@@ -1,7 +1,5 @@
-import 'package:fitness_app/services/api_config.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert'; // For json.encode/decode
-import 'package:http/http.dart' as http; // For making HTTP requests
+import 'package:fitness_app/services/database_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,13 +11,13 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final DatabaseService _dbService = DatabaseService();
 
   bool _isLoading = false;
   String _errorMessage = '';
 
   Future<void> _login() async {
-    // ✅ クリック確認ログ
-    debugPrint('LOGIN: tapped -> POST $apiBaseUrl/login');
+    debugPrint('LOGIN: tapped');
 
     setState(() {
       _isLoading = true;
@@ -27,47 +25,34 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final uri = Uri.parse('$apiBaseUrl/login');
-      debugPrint('LOGIN: uri=$uri');
+      final username = _usernameController.text.trim();
+      final password = _passwordController.text;
 
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'username': _usernameController.text,
-          'password': _passwordController.text,
-        }),
-      );
+      if (username.isEmpty || password.isEmpty) {
+        setState(() {
+          _errorMessage = 'Please enter username and password.';
+        });
+        return;
+      }
 
-      debugPrint('LOGIN: status=${response.statusCode}');
-      debugPrint('LOGIN: body=${response.body}');
+      final success = await _dbService.login(username, password);
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
+      if (success) {
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        String message = 'Login failed. Please try again.';
-        try {
-          final Map<String, dynamic> responseBody =
-              json.decode(response.body) as Map<String, dynamic>;
-          message = (responseBody['message'] ?? message).toString();
-        } catch (_) {
-          // JSONじゃないときは response.body をそのまま表示してもOK
-          if (response.body.isNotEmpty) message = response.body;
-        }
         setState(() {
-          _errorMessage = message;
+          _errorMessage = 'Invalid username or password.';
         });
       }
     } catch (e, st) {
-      // ✅ 例外内容を必ず表示（Networkに出ない原因を特定できる）
       debugPrint('LOGIN: exception=$e');
       debugPrint('LOGIN: stacktrace=$st');
 
       if (mounted) {
         setState(() {
-          _errorMessage = 'Network error or server unavailable.';
+          _errorMessage = 'An error occurred. Please try again.';
         });
       }
     } finally {

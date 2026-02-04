@@ -9,7 +9,10 @@
       "Bash(docker-compose down:*)",
       "Bash(docker-compose up:*)",
       "Bash(powershell -Command \"cd ''C:\\\\src\\\\training''; docker-compose down -v; docker-compose up -d\")",
-      "Bash(powershell -Command \"cd ''C:\\\\src\\\\training''; docker-compose restart backend\")"
+      "Bash(powershell -Command \"cd ''C:\\\\src\\\\training''; docker-compose restart backend\")",
+      "Bash(flutter pub:*)",
+      "Bash(flutter clean:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
