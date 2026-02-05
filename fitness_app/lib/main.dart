@@ -1,4 +1,6 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:fitness_app/add_log_manual_screen.dart';
+import 'package:fitness_app/create_custom_menu_screen.dart';
 import 'package:fitness_app/login_screen.dart';
 import 'package:fitness_app/home_screen.dart'; // Contains WorkoutDetailScreen now
 import 'package:fitness_app/signup_screen.dart';
@@ -50,23 +52,25 @@ class FitnessApp extends StatelessWidget {
             foregroundColor: Colors.white,
             backgroundColor: Colors.black87,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16), // More rounded
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 18), // Increased padding
             textStyle: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
             ),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFFF5F5F5),
+          fillColor: const Color(0xFFF8F8F8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18), // Increased padding
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
-          hintStyle: TextStyle(color: Colors.grey[500]),
+          hintStyle: TextStyle(color: Colors.grey[400]),
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
@@ -95,8 +99,15 @@ class FitnessApp extends StatelessWidget {
           return WorkoutDetailScreen(
             workoutName: args['workoutName'] as String,
             startDate: args['startDate'] as DateTime?,
+            isCustom: args['isCustom'] as bool? ?? false,
+            details: args['details'] as String?,
           );
         },
+        '/add_manual_log': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+          return AddManualLogScreen(selectedDate: args?['selectedDate'] as DateTime?);
+        },
+        '/create_custom_menu': (context) => const CreateCustomMenuScreen(),
       },
     );
   }

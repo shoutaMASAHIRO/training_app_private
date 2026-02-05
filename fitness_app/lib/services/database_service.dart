@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 import 'package:fitness_app/models/workout_log.dart';
+import 'package:fitness_app/models/custom_program.dart';
 import 'package:fitness_app/services/database_helper.dart';
 
 class DatabaseService {
@@ -296,6 +297,78 @@ class DatabaseService {
     } catch (e) {
       debugPrint('[DB] Error deleting logs: $e');
       throw Exception('Failed to delete logs: $e');
+    }
+  }
+
+  // ==================== カスタムプログラム ====================
+
+  /// カスタムプログラム追加
+  Future<void> addCustomProgram(CustomProgram program) async {
+    try {
+      final db = await _dbHelper.database;
+      final map = program.toMap();
+      map.remove('id'); // IDは自動生成
+
+      final id = await db.insert(DatabaseHelper.tableCustomPrograms, map);
+      debugPrint('[DB] Custom program added with id: $id');
+    } catch (e) {
+      debugPrint('[DB] Error adding custom program: $e');
+      throw Exception('Failed to add custom program: $e');
+    }
+  }
+
+  /// カスタムプログラム全取得
+  Future<List<CustomProgram>> getCustomPrograms() async {
+    try {
+      final db = await _dbHelper.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseHelper.tableCustomPrograms,
+        orderBy: '${DatabaseHelper.colProgramId} DESC',
+      );
+
+      final programs = maps.map((map) => CustomProgram.fromMap(map)).toList();
+      debugPrint('[DB] Loaded ${programs.length} custom programs');
+      return programs;
+    } catch (e) {
+      debugPrint('[DB] Error loading custom programs: $e');
+      throw Exception('Failed to load custom programs: $e');
+    }
+  }
+
+  /// カスタムプログラム削除（関連する未完了スケジュールも削除）
+  Future<void> deleteCustomProgram(int id) async {
+    try {
+      final db = await _dbHelper.database;
+      
+      // 1. プログラム名を取得しておく
+      final List<Map<String, dynamic>> result = await db.query(
+        DatabaseHelper.tableCustomPrograms,
+        where: '${DatabaseHelper.colProgramId} = ?',
+        whereArgs: [id],
+      );
+      
+      if (result.isNotEmpty) {
+        final programName = result.first[DatabaseHelper.colProgramName] as String;
+        
+        // 2. プログラム本体を削除
+        await db.delete(
+          DatabaseHelper.tableCustomPrograms,
+          where: '${DatabaseHelper.colProgramId} = ?',
+          whereArgs: [id],
+        );
+        
+        // 3. スケジュールテーブルから、このプログラム名の未完了セッションを削除
+        final count = await db.delete(
+          DatabaseHelper.tableSchedules,
+          where: '${DatabaseHelper.colMenuTitle} = ? AND ${DatabaseHelper.colIsCompleted} = 0',
+          whereArgs: [programName],
+        );
+        
+        debugPrint('[DB] Custom program "$programName" and $count related incomplete schedules deleted');
+      }
+    } catch (e) {
+      debugPrint('[DB] Error deleting custom program and schedules: $e');
+      throw Exception('Failed to delete custom program and schedules: $e');
     }
   }
 }

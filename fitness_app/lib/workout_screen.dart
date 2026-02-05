@@ -358,6 +358,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   completedDate: DateTime.now(),
                   menuTitle: _todaysSchedule.menuTitle,
                   workoutDetails: _todaysSchedule.workoutDetails,
+                  sessionTitle: _todaysSchedule.sessionTitle,
                   successCount: _successCount,
                   failCount: _failCount,
                 );
@@ -682,6 +683,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                           completedDate: DateTime.now(),
                           menuTitle: _todaysSchedule.menuTitle,
                           workoutDetails: _todaysSchedule.workoutDetails,
+                          sessionTitle: _todaysSchedule.sessionTitle,
                           successCount: _successCount,
                           failCount: _failCount,
                         ),

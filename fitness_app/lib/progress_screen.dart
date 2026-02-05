@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
+import 'package:table_calendar/table_calendar.dart';
 
 import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_log.dart';
@@ -13,103 +15,174 @@ class ProgressScreen extends StatefulWidget {
   State<ProgressScreen> createState() => _ProgressScreenState();
 }
 
-class _ProgressScreenState extends State<ProgressScreen>
-    with SingleTickerProviderStateMixin {
+class _ProgressScreenState extends State<ProgressScreen> {
   final DatabaseService _apiService = DatabaseService();
-  String? _selectedMenu;
+  String? _selectedExercise;
   List<WorkoutLog> _workoutLogs = [];
-  List<String> _availableMenus = [];
+  List<String> _availableExercises = [];
   bool _isLoading = true;
   String _errorMessage = '';
   Map<DateTime, double> _dailyWeights = {};
   int? _touchedIndex;
-  late AnimationController _animationController;
-  late Animation<double> _animation;
+
+  // Calendar state
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  DateTime? _hoveredDay;
+  bool _isHeaderHovered = false;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _animation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOutCubic,
-    );
+    _selectedDay = _focusedDay;
     _fetchWorkoutLogs();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchWorkoutLogs() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-    try {
-      final logs = await _apiService.getLogs();
-      final uniqueMenus = logs.map((log) => log.menuTitle).toSet().toList();
-      uniqueMenus.sort();
+    Future<void> _fetchWorkoutLogs() async {
 
       setState(() {
-        _workoutLogs = logs;
-        _availableMenus = uniqueMenus;
-        _selectedMenu = uniqueMenus.isNotEmpty ? uniqueMenus.first : null;
-        _isLoading = false;
+
+        _isLoading = true;
+
+        _errorMessage = '';
+
       });
-      _animationController.forward(from: 0);
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load workout logs: $e';
-        _isLoading = false;
-      });
-    }
+
+      try {
+
+        final logs = await _apiService.getLogs();
+
+        
+
+        // 実績登録画面から登録した「最重量の記録 (Max record)」のみを抽出
+
+        // これにより、通常のワークアウト完了記録はProgressページには一切表示されなくなります
+
+        final prLogs = logs.where((log) {
+
+          final details = log.workoutDetails ?? '';
+
+          return details.contains('Max record');
+
+        }).toList();
+
+  
+
+        final uniqueExercises = prLogs.map((log) => log.sessionTitle ?? log.menuTitle).toSet().toList();
+
+        uniqueExercises.sort();
+
+  
+
+        setState(() {
+
+          _workoutLogs = prLogs;
+
+          _availableExercises = uniqueExercises;
+
+          // Keep selected exercise if it's still available
+
+          if (_selectedExercise == null || !uniqueExercises.contains(_selectedExercise)) {
+
+            _selectedExercise = uniqueExercises.isNotEmpty ? uniqueExercises.first : null;
+
+          }
+
+          _isLoading = false;
+
+        });
+
+      } catch (e) {
+
+  
+            setState(() {
+              _errorMessage = 'Failed to load workout logs: $e';
+              _isLoading = false;
+            });
+          }
+        }
+      
+        void _onExerciseSelected(String exercise) {
+          if (_selectedExercise != exercise) {
+            setState(() {
+              _selectedExercise = exercise;
+              _touchedIndex = null;
+            });
+          }
+        }
+        Color _getExerciseColor(String? exercise, ColorScheme colorScheme) {
+    return colorScheme.primary;
   }
 
-  void _onMenuSelected(String menu) {
-    if (_selectedMenu != menu) {
-      setState(() {
-        _selectedMenu = menu;
-        _touchedIndex = null;
+  List<dynamic> _getEventsForDay(DateTime day) {
+    return _workoutLogs
+        .where((log) => isSameDay(log.completedDate, day))
+        .toList();
+  }
+
+  void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
+    if (isSameDay(_selectedDay, selectedDay)) {
+      // Already selected, navigate to add manual log screen
+      Navigator.pushNamed(
+        context,
+        '/add_manual_log',
+        arguments: {'selectedDate': selectedDay},
+      ).then((result) {
+        if (result == true) {
+          _fetchWorkoutLogs();
+        }
       });
-      _animationController.forward(from: 0);
+    } else {
+      // New date selected, just update state to show logs
+      setState(() {
+        _selectedDay = selectedDay;
+        _focusedDay = focusedDay;
+      });
     }
   }
 
   List<FlSpot> _generateChartData() {
-    if (_selectedMenu == null || _workoutLogs.isEmpty) {
+    if (_selectedExercise == null || _workoutLogs.isEmpty) {
       return [];
     }
 
     final filteredLogs = _workoutLogs
-        .where((log) => log.menuTitle == _selectedMenu)
+        .where((log) => (log.sessionTitle ?? log.menuTitle) == _selectedExercise)
         .sorted((a, b) => a.completedDate.compareTo(b.completedDate))
         .toList();
 
     _dailyWeights.clear();
     for (var log in filteredLogs) {
       if (log.workoutDetails != null && log.workoutDetails!.contains('@')) {
-        final weightString =
-            log.workoutDetails!.split('@')[1].trim().split('kg')[0].trim();
-        final weight = double.tryParse(weightString);
-        if (weight != null) {
-          final date = DateUtils.dateOnly(log.completedDate);
-          _dailyWeights[date] = weight;
+        // Try to find weight in format "@ XX.Xkg"
+        final regex = RegExp(r'@\s*(\d+(\.\d+)?)kg');
+        final match = regex.firstMatch(log.workoutDetails!);
+        if (match != null) {
+          final weightString = match.group(1);
+          final weight = double.tryParse(weightString!);
+          if (weight != null) {
+            final date = DateUtils.dateOnly(log.completedDate);
+            // Keep the maximum weight for that day if there are multiple logs
+            if (!_dailyWeights.containsKey(date) || weight > _dailyWeights[date]!) {
+              _dailyWeights[date] = weight;
+            }
+          }
         }
       }
     }
 
     final List<FlSpot> spots = [];
-    int index = 0;
-    _dailyWeights.keys.sorted((a, b) => a.compareTo(b)).forEach((date) {
-      spots.add(FlSpot(index.toDouble(), _dailyWeights[date]!));
-      index++;
-    });
+    final sortedDates = _dailyWeights.keys.toList()..sort();
+    
+    for (int i = 0; i < sortedDates.length; i++) {
+      spots.add(FlSpot(i.toDouble(), _dailyWeights[sortedDates[i]]!));
+    }
 
     return spots;
   }
@@ -148,129 +221,432 @@ class _ProgressScreenState extends State<ProgressScreen>
       );
     }
 
-    if (_workoutLogs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.fitness_center,
-                size: 64, color: colorScheme.outline.withAlpha((255 * 0.5).round())),
-            const SizedBox(height: 16),
-            Text(
-              'トレーニング履歴がありません',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(color: colorScheme.outline),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'ワークアウトを完了すると\nここに進捗が表示されます',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: colorScheme.outline.withAlpha((255 * 0.7).round())),
-            ),
-          ],
-        ),
-      );
-    }
-
     final spots = _generateChartData();
     final sortedDates = _getSortedDates();
 
-    return Column(
-      children: [
-        // Header with title
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Icon(Icons.trending_up, color: colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                '重量推移',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+    return RefreshIndicator(
+      onRefresh: _fetchWorkoutLogs,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 24.0), // Added vertical padding
+        child: Column(
+          children: [
+            // Header with title
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12), // Increased padding
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_month, color: colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Text(
+                    '進捗登録',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Calendar Card
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), // Increased horizontal margin
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: Colors.grey.shade200),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: TableCalendar(
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2030, 12, 31),
+                  focusedDay: _focusedDay,
+                  calendarFormat: _calendarFormat,
+                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                  onDaySelected: _onDaySelected,
+                  eventLoader: _getEventsForDay,
+                  onFormatChanged: (format) {
+                    if (_calendarFormat != format) {
+                      setState(() {
+                        _calendarFormat = format;
+                      });
+                    }
+                  },
+                  onPageChanged: (focusedDay) {
+                    setState(() {
+                      _focusedDay = focusedDay;
+                    });
+                  },
+                  headerStyle: const HeaderStyle(
+                    titleCentered: true,
+                    formatButtonVisible: false,
+                    titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  calendarBuilders: CalendarBuilders(
+                    markerBuilder: (context, day, events) {
+                      if (events.isEmpty) return const SizedBox.shrink();
+                      return Positioned(
+                        bottom: 1,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      );
+                    },
+                    headerTitleBuilder: (context, date) {
+                      return Center(
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) => setState(() => _isHeaderHovered = true),
+                          onExit: (_) => setState(() => _isHeaderHovered = false),
+                          child: GestureDetector(
+                            onTap: () {
+                              showDatePicker(
+                                context: context,
+                                initialDate: _focusedDay,
+                                firstDate: DateTime.utc(2020, 1, 1),
+                                lastDate: DateTime.utc(2030, 12, 31),
+                              ).then((pickedDate) {
+                                if (pickedDate != null) {
+                                  setState(() {
+                                    _focusedDay = pickedDate;
+                                    _selectedDay = pickedDate;
+                                  });
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                DateFormat('yyyy年M月').format(date),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: _isHeaderHovered
+                                      ? colorScheme.primary.withAlpha(150)
+                                      : colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    prioritizedBuilder: (context, day, focusedDay) {
+                      final isHovered = isSameDay(_hoveredDay, day);
+                      final isSelected = isSameDay(_selectedDay, day);
+                      final isToday = isSameDay(day, DateTime.now());
+
+                      BoxDecoration decoration;
+                      if (isSelected) {
+                        decoration = BoxDecoration(
+                          color: colorScheme.primary,
+                          borderRadius: BorderRadius.circular(8.0),
+                        );
+                      } else if (isToday) {
+                        decoration = BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8.0),
+                        );
+                      } else if (isHovered) {
+                        decoration = BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8.0),
+                        );
+                      } else {
+                        decoration = const BoxDecoration(shape: BoxShape.rectangle);
+                      }
+
+                      return MouseRegion(
+                        onEnter: (_) => setState(() => _hoveredDay = day),
+                        onExit: (_) => setState(() => _hoveredDay = null),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.all(4.0),
+                          decoration: decoration,
+                          child: Center(
+                            child: Text(
+                              '${day.day}',
+                              style: TextStyle(
+                                color: isSelected
+                                    ? colorScheme.onPrimary
+                                    : colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+
+            if (_selectedDay != null) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          DateFormat('M月d日の記録').format(_selectedDay!),
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              '/add_manual_log',
+                              arguments: {'selectedDate': _selectedDay},
+                            ).then((result) {
+                              if (result == true) {
+                                _fetchWorkoutLogs();
+                              }
+                            });
+                          },
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('記録を追加'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ..._getEventsForDay(_selectedDay!)
+                        .map((event) => _buildDayLogCard(event as WorkoutLog, theme))
+                        .toList(),
+                    if (_getEventsForDay(_selectedDay!).isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'この日の記録はありません',
+                          style: TextStyle(color: colorScheme.outline, fontSize: 13),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
-          ),
-        ),
 
-        // Menu selection chips
-        SizedBox(
-          height: 50,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: _availableMenus.length,
-            itemBuilder: (context, index) {
-              final menu = _availableMenus[index];
-              final isSelected = menu == _selectedMenu;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: FilterChip(
-                  label: Text(menu),
-                  selected: isSelected,
-                  onSelected: (_) => _onMenuSelected(menu),
-                  selectedColor: colorScheme.primaryContainer,
-                  checkmarkColor: colorScheme.onPrimaryContainer,
-                  labelStyle: TextStyle(
-                    color: isSelected
-                        ? colorScheme.onPrimaryContainer
-                        : colorScheme.onSurface,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            const Divider(height: 64, indent: 24, endIndent: 24, thickness: 0.5), // More space around divider
+
+            // Header with title for chart
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Row(
+                children: [
+                  Icon(Icons.show_chart, color: colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Text(
+                    '種目別重量推移',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                  elevation: isSelected ? 2 : 0,
-                  pressElevation: 4,
+                ],
+              ),
+            ),
+
+            if (_availableExercises.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 32.0),
+                child: Column(
+                  children: [
+                    Icon(Icons.fitness_center,
+                        size: 48, color: colorScheme.outline.withValues(alpha: 0.5)),
+                    const SizedBox(height: 16),
+                    Text(
+                      '重量推移データがありません',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(color: colorScheme.outline),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '「記録を追加」から実績を登録すると\nここに進捗グラフが表示されます',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: colorScheme.outline.withValues(alpha: 0.7)),
+                    ),
+                  ],
                 ),
-              );
-            },
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Selected point info card
-        if (_touchedIndex != null && _touchedIndex! < sortedDates.length)
-          _buildSelectedPointCard(sortedDates, spots, colorScheme, theme),
-
-        // Chart
-        Expanded(
-          child: spots.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.show_chart,
-                          size: 48, color: colorScheme.outline.withAlpha((255 * 0.5).round())),
-                      const SizedBox(height: 12),
-                      Text(
-                        'このメニューの重量データがありません',
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: colorScheme.outline),
-                      ),
-                    ],
+              )
+            else ...[
+              // Exercise selection dropdown
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: DropdownButtonFormField<String>(
+                  value: _selectedExercise,
+                  decoration: InputDecoration(
+                    labelText: '種目を選択',
+                    labelStyle: TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
+                      fontSize: 14,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none, // Remove border
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey.shade100, // Subtle background
                   ),
-                )
-              : AnimatedBuilder(
-                  animation: _animation,
-                  builder: (context, child) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 16, 20, 16),
-                      child: InteractiveViewer(
+                  items: _availableExercises.map((exercise) {
+                    return DropdownMenuItem<String>(
+                      value: exercise,
+                      child: Text(
+                        exercise,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) _onExerciseSelected(value);
+                  },
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: colorScheme.onSurface.withValues(alpha: 0.4)),
+                  dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Selected point info card
+              if (_touchedIndex != null && _touchedIndex! < sortedDates.length)
+                _buildSelectedPointCard(sortedDates, spots, colorScheme, theme),
+
+              // Chart
+              Container(
+                height: 300,
+                padding: const EdgeInsets.fromLTRB(8, 16, 32, 16), // Increased right padding
+                child: spots.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.show_chart,
+                                size: 48, color: colorScheme.outline.withValues(alpha: 0.5)),
+                            const SizedBox(height: 12),
+                            Text(
+                              'このメニューの重量データがありません',
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(color: colorScheme.outline),
+                            ),
+                          ],
+                        ),
+                      )
+                    : InteractiveViewer(
                         panEnabled: true,
                         scaleEnabled: true,
                         minScale: 0.5,
                         maxScale: 3.0,
                         child: _buildChart(spots, sortedDates, colorScheme),
                       ),
-                    );
-                  },
-                ),
-        ),
+              ),
 
-        // Statistics summary
-        if (spots.isNotEmpty) _buildStatisticsSummary(spots, colorScheme, theme),
-      ],
+              // Statistics summary
+              if (spots.isNotEmpty) _buildStatisticsSummary(spots, colorScheme, theme),
+            ],
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayLogCard(WorkoutLog log, ThemeData theme) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        title: Text(
+          log.menuTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(log.workoutDetails ?? ''),
+        trailing: IconButton(
+          icon: Icon(Icons.delete_outline, color: theme.colorScheme.error, size: 20),
+          onPressed: () => _confirmDeleteLog(log),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteLog(WorkoutLog log) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('記録の削除'),
+        content: Text('${log.menuTitle} (${log.workoutDetails}) の記録を削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('キャンセル', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && log.id != null) {
+      await _deleteLog(log.id!);
+    }
+  }
+
+  Future<void> _deleteLog(int id) async {
+    try {
+      await _apiService.deleteLog(id);
+      await _fetchWorkoutLogs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('記録を削除しました')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('削除に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Widget _buildSimpleStat(IconData icon, Color color, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 4),
+          Text('$count'),
+        ],
+      ),
     );
   }
 
@@ -305,9 +681,9 @@ class _ProgressScreenState extends State<ProgressScreen>
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withAlpha((255 * 0.3).round()),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.primary.withAlpha((255 * 0.3).round())),
+        // Removed Border.all
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -317,7 +693,7 @@ class _ProgressScreenState extends State<ProgressScreen>
               Text(
                 DateFormat('yyyy/MM/dd').format(date),
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurface.withAlpha((255 * 0.7).round()),
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 4),
@@ -351,25 +727,47 @@ class _ProgressScreenState extends State<ProgressScreen>
 
   Widget _buildChart(
       List<FlSpot> spots, List<DateTime> sortedDates, ColorScheme colorScheme) {
-    final minY = (spots.map((s) => s.y).minOrNull ?? 0) - 5;
-    final maxY = (spots.map((s) => s.y).maxOrNull ?? 0) + 5;
+    if (spots.isEmpty) return const SizedBox.shrink();
+
+    final firstWeight = spots.first.y;
+    final minWeight = spots.map((s) => s.y).minOrNull ?? firstWeight;
+    final maxWeight = spots.map((s) => s.y).maxOrNull ?? firstWeight;
+
+    // Use the first weight as a baseline reference
+    // We round down to the nearest 10kg below the start point or min weight
+    double minY = (min(minWeight, firstWeight) - 10);
+    minY = (minY / 10).floor() * 10.0;
+    if (minY < 0) minY = 0;
+
+    // Ensure at least a 20kg visible range for better perspective
+    double maxY = max(maxWeight + 10, minY + 20);
+    maxY = (maxY / 10).ceil() * 10.0;
+
+    final exerciseColor = _getExerciseColor(_selectedExercise, colorScheme);
 
     // Animate the spots
     final animatedSpots = spots.map((spot) {
-      return FlSpot(spot.x, spot.y * _animation.value);
+      return FlSpot(spot.x, spot.y);
     }).toList();
 
     return LineChart(
       LineChartData(
         gridData: FlGridData(
           show: true,
-          drawVerticalLine: false,
+          drawVerticalLine: true,
+          verticalInterval: 1, // Draw a line for every data point
           horizontalInterval: 5,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: colorScheme.outline.withAlpha((255 * 0.2).round()),
-              strokeWidth: 1,
+              color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+              strokeWidth: 0.5,
               dashArray: [5, 5],
+            );
+          },
+          getDrawingVerticalLine: (value) {
+            return FlLine(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+              strokeWidth: 0.5,
             );
           },
         ),
@@ -377,20 +775,27 @@ class _ProgressScreenState extends State<ProgressScreen>
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 32,
+              reservedSize: 42,
               interval: spots.length > 10 ? (spots.length / 5).ceil().toDouble() : 1,
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
                 if (index >= 0 && index < sortedDates.length) {
                   return SideTitleWidget(
                     meta: meta,
-                    child: RotatedBox(
-                      quarterTurns: -1,
+                    fitInside: SideTitleFitInsideData(
+                      enabled: true,
+                      axisPosition: meta.axisPosition,
+                      parentAxisSize: meta.parentAxisSize,
+                      distanceFromEdge: 0,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
                         DateFormat('M/d').format(sortedDates[index]),
                         style: TextStyle(
                           fontSize: 10,
-                          color: colorScheme.onSurface.withAlpha((255 * 0.7).round()),
+                          fontWeight: FontWeight.w500,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -406,11 +811,17 @@ class _ProgressScreenState extends State<ProgressScreen>
               reservedSize: 45,
               interval: 5,
               getTitlesWidget: (value, meta) {
-                return Text(
-                  '${value.toInt()}kg',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: colorScheme.onSurface.withAlpha((255 * 0.7).round()),
+                if (value == minY || value == maxY) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Text(
+                    '${value.toInt()}kg',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 );
               },
@@ -419,38 +830,31 @@ class _ProgressScreenState extends State<ProgressScreen>
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-        borderData: FlBorderData(show: false),
+        clipData: const FlClipData.none(), // Allow labels/dots to draw outside the chart area
+        borderData: FlBorderData(
+          show: true,
+          border: Border(
+            bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3), width: 1),
+            left: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3), width: 1),
+            right: const BorderSide(color: Colors.transparent),
+            top: const BorderSide(color: Colors.transparent),
+          ),
+        ),
         lineBarsData: [
           LineChartBarData(
             spots: animatedSpots,
-            isCurved: true,
-            curveSmoothness: 0.3,
+            isCurved: false, // Linear line chart
             barWidth: 3,
-            color: colorScheme.primary,
-            gradient: LinearGradient(
-              colors: [
-                colorScheme.primary,
-                colorScheme.secondary,
-              ],
-            ),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.primary.withAlpha((255 * 0.3).round()),
-                  colorScheme.primary.withAlpha((255 * 0.05).round()),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
+            color: exerciseColor,
+            isStrokeCapRound: true,
+            belowBarData: BarAreaData(show: false), // Removed shaded area
             dotData: FlDotData(
               show: true,
               getDotPainter: (spot, percent, barData, index) {
                 final isTouched = index == _touchedIndex;
                 return FlDotCirclePainter(
-                  radius: isTouched ? 8 : 4,
-                  color: isTouched ? colorScheme.tertiary : colorScheme.primary,
+                  radius: isTouched ? 6 : 4,
+                  color: isTouched ? colorScheme.tertiary : exerciseColor,
                   strokeWidth: isTouched ? 3 : 2,
                   strokeColor: colorScheme.surface,
                 );
@@ -459,8 +863,8 @@ class _ProgressScreenState extends State<ProgressScreen>
           ),
         ],
         minX: 0,
-        maxX: (spots.length - 1).toDouble(),
-        minY: minY * _animation.value,
+        maxX: spots.length > 1 ? (spots.length - 1).toDouble() : 1.0,
+        minY: minY,
         maxY: maxY,
         lineTouchData: LineTouchData(
           enabled: true,
@@ -478,8 +882,8 @@ class _ProgressScreenState extends State<ProgressScreen>
           touchTooltipData: LineTouchTooltipData(
             fitInsideHorizontally: true,
             fitInsideVertically: true,
-            getTooltipColor: (touchedSpot) =>
-                colorScheme.inverseSurface.withValues(alpha: 0.9),
+            getTooltipColor: (touchedSpot) => colorScheme.surfaceContainerHighest,
+            tooltipBorder: BorderSide(color: colorScheme.outlineVariant),
             tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             getTooltipItems: (List<LineBarSpot> touchedSpots) {
               return touchedSpots.map((LineBarSpot touchedSpot) {
@@ -487,11 +891,22 @@ class _ProgressScreenState extends State<ProgressScreen>
                 if (index >= 0 && index < sortedDates.length) {
                   final date = sortedDates[index];
                   return LineTooltipItem(
-                    '${DateFormat('MM/dd').format(date)}\n${touchedSpot.y.toStringAsFixed(1)}kg',
+                    '${DateFormat('MM/dd').format(date)}\n',
                     TextStyle(
-                      color: colorScheme.onInverseSurface,
-                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                      fontWeight: FontWeight.normal,
                     ),
+                    children: [
+                      TextSpan(
+                        text: '${touchedSpot.y.toStringAsFixed(1)}kg',
+                        style: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   );
                 }
                 return null;
@@ -503,21 +918,11 @@ class _ProgressScreenState extends State<ProgressScreen>
             return spotIndexes.map((index) {
               return TouchedSpotIndicatorData(
                 FlLine(
-                  color: colorScheme.primary.withAlpha((255 * 0.5).round()),
+                  color: colorScheme.primary.withValues(alpha: 0.5),
                   strokeWidth: 2,
                   dashArray: [5, 5],
                 ),
-                FlDotData(
-                  show: true,
-                  getDotPainter: (spot, percent, barData, index) {
-                    return FlDotCirclePainter(
-                      radius: 8,
-                      color: colorScheme.tertiary,
-                      strokeWidth: 3,
-                      strokeColor: colorScheme.surface,
-                    );
-                  },
-                ),
+                FlDotData(show: false), // Dots are handled in lineBarsData
               );
             }).toList();
           },

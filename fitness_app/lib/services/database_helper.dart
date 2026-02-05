@@ -12,6 +12,7 @@ class DatabaseHelper {
   static const String tableUsers = 'users';
   static const String tableSchedules = 'workout_schedules';
   static const String tableLogs = 'workout_logs';
+  static const String tableCustomPrograms = 'custom_programs';
 
   // usersテーブルのカラム
   static const String colUserId = 'id';
@@ -32,8 +33,15 @@ class DatabaseHelper {
   static const String colCompletedDate = 'completed_date';
   static const String colLogMenuTitle = 'menu_title';
   static const String colLogWorkoutDetails = 'workout_details';
+  static const String colLogSessionTitle = 'session_title';
   static const String colSuccessCount = 'success_count';
   static const String colFailCount = 'fail_count';
+
+  // custom_programsテーブルのカラム
+  static const String colProgramId = 'id';
+  static const String colProgramName = 'name';
+  static const String colProgramDescription = 'description';
+  static const String colProgramDetails = 'details';
 
   /// データベースファクトリの初期化
   static void initializeDatabaseFactory() {
@@ -55,7 +63,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -67,6 +75,23 @@ class DatabaseHelper {
       // Add the new column 'session_title' to workout_schedules table
       await db.execute('ALTER TABLE $tableSchedules ADD COLUMN $colSessionTitle TEXT;');
       debugPrint('[DB] Added column $colSessionTitle to $tableSchedules');
+    }
+    if (oldVersion < 3) {
+      // Add the new column 'session_title' to workout_logs table
+      await db.execute('ALTER TABLE $tableLogs ADD COLUMN $colLogSessionTitle TEXT;');
+      debugPrint('[DB] Added column $colLogSessionTitle to $tableLogs');
+    }
+    if (oldVersion < 4) {
+      // Create custom_programs table
+      await db.execute('''
+        CREATE TABLE $tableCustomPrograms (
+          $colProgramId INTEGER PRIMARY KEY AUTOINCREMENT,
+          $colProgramName TEXT NOT NULL,
+          $colProgramDescription TEXT,
+          $colProgramDetails TEXT
+        )
+      ''');
+      debugPrint('[DB] Created table: $tableCustomPrograms');
     }
   }
 
@@ -104,11 +129,23 @@ class DatabaseHelper {
         $colCompletedDate TEXT NOT NULL,
         $colLogMenuTitle TEXT NOT NULL,
         $colLogWorkoutDetails TEXT,
+        $colLogSessionTitle TEXT,
         $colSuccessCount INTEGER,
         $colFailCount INTEGER
       )
     ''');
     debugPrint('[DB] Created table: $tableLogs');
+
+    // custom_programsテーブル
+    await db.execute('''
+      CREATE TABLE $tableCustomPrograms (
+        $colProgramId INTEGER PRIMARY KEY AUTOINCREMENT,
+        $colProgramName TEXT NOT NULL,
+        $colProgramDescription TEXT,
+        $colProgramDetails TEXT
+      )
+    ''');
+    debugPrint('[DB] Created table: $tableCustomPrograms');
 
     debugPrint('[DB] Database creation complete');
   }

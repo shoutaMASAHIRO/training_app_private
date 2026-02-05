@@ -29,9 +29,17 @@ class _LogsScreenState extends State<LogsScreen> {
 
   Future<void> _loadLogs() async {
     try {
-      final logs = await _apiService.getLogs(); // Returns List<WorkoutLog>
+      final allLogs = await _apiService.getLogs();
+      
+      // Progressで登録した「最重量の記録 (Max record)」を除外する
+      // workoutDetailsに "Max record" という文字列が含まれているものを実績データとして扱う
+      final filteredLogs = allLogs.where((log) {
+        final details = log.workoutDetails ?? '';
+        return !details.contains('Max record');
+      }).toList();
+
       setState(() {
-        _logs = logs;
+        _logs = filteredLogs;
         _isLoading = false;
       });
     } catch (e) {
@@ -93,6 +101,8 @@ class _LogsScreenState extends State<LogsScreen> {
         return Colors.red;
       case '10x10':
         return Colors.blue;
+      case '5/3/1':
+        return Colors.purple;
       default:
         return Colors.grey;
     }

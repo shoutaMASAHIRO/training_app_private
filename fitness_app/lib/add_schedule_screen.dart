@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
+import 'package:fitness_app/models/custom_program.dart';
 
 class AddScheduleScreen extends StatefulWidget {
   final DateTime? selectedDate;
@@ -20,11 +21,24 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   late DateTime _selectedDate;
   int _selectedIndex = 0;
   bool _isSaving = false;
+  List<CustomProgram> _customPrograms = [];
 
   @override
   void initState() {
     super.initState();
     _selectedDate = widget.selectedDate ?? DateTime.now();
+    _fetchCustomPrograms();
+  }
+
+  Future<void> _fetchCustomPrograms() async {
+    try {
+      final programs = await _dbService.getCustomPrograms();
+      setState(() {
+        _customPrograms = programs;
+      });
+    } catch (e) {
+      debugPrint('Error fetching custom programs: $e');
+    }
   }
 
   @override
@@ -227,6 +241,59 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                 );
               },
             ),
+            const SizedBox(height: 8),
+
+            // 5/3/1 カード
+            _buildProgramCard(
+              name: '5/3/1',
+              description: '週3回の頻度で行う筋力向上プログラム',
+              color: Colors.purple,
+              icon: Icons.looks_3,
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/workout_detail',
+                  arguments: {
+                    'workoutName': '5/3/1',
+                    'startDate': _selectedDate,
+                  },
+                );
+              },
+            ),
+
+            if (_customPrograms.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text(
+                '自作プログラム',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ..._customPrograms.map((program) => Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: _buildProgramCard(
+                  name: program.name,
+                  description: 'カスタムメニュー',
+                  color: Colors.grey.shade700,
+                  icon: Icons.fitness_center,
+                  onTap: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/workout_detail',
+                      arguments: {
+                        'workoutName': program.name,
+                        'startDate': _selectedDate,
+                        'isCustom': true,
+                        'details': program.details,
+                      },
+                    );
+                  },
+                ),
+              )).toList(),
+            ],
 
             const SizedBox(height: 24),
 

@@ -3,6 +3,7 @@ class WorkoutLog {
   final DateTime completedDate;
   final String menuTitle;
   final String? workoutDetails;
+  final String? sessionTitle;
   final int? successCount;
   final int? failCount;
 
@@ -11,6 +12,7 @@ class WorkoutLog {
     required this.completedDate,
     required this.menuTitle,
     this.workoutDetails,
+    this.sessionTitle,
     this.successCount,
     this.failCount,
   });
@@ -22,6 +24,7 @@ class WorkoutLog {
       completedDate: DateTime.parse(json['completed_date']),
       menuTitle: json['menu_title'],
       workoutDetails: json['workout_details'],
+      sessionTitle: json['session_title'],
       successCount: json['success_count'],
       failCount: json['fail_count'],
     );
@@ -32,6 +35,7 @@ class WorkoutLog {
       'completed_date': completedDate.toIso8601String().split('T')[0],
       'menu_title': menuTitle,
       'workout_details': workoutDetails,
+      'session_title': sessionTitle,
       'success_count': successCount,
       'fail_count': failCount,
     };
@@ -44,6 +48,7 @@ class WorkoutLog {
       completedDate: DateTime.parse(map['completed_date'] as String),
       menuTitle: map['menu_title'] as String,
       workoutDetails: map['workout_details'] as String?,
+      sessionTitle: map['session_title'] as String?,
       successCount: map['success_count'] as int?,
       failCount: map['fail_count'] as int?,
     );
@@ -55,6 +60,7 @@ class WorkoutLog {
       'completed_date': completedDate.toIso8601String().split('T')[0],
       'menu_title': menuTitle,
       'workout_details': workoutDetails,
+      'session_title': sessionTitle,
       'success_count': successCount,
       'fail_count': failCount,
     };
