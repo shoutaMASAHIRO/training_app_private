@@ -209,7 +209,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
             _buildProgramCard(
               name: 'Smolov Jr.',
               description: '3週間の高頻度プログラム',
-              color: Colors.red,
+              color: const Color(0xFFFFB74D), // Light Orange
               icon: Icons.trending_up,
               onTap: () {
                 Navigator.pushNamed(
@@ -228,7 +228,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
             _buildProgramCard(
               name: '10x10',
               description: 'ジャーマンボリュームトレーニング',
-              color: Colors.blue,
+              color: const Color(0xFF81C784), // Light Green
               icon: Icons.grid_view,
               onTap: () {
                 Navigator.pushNamed(
@@ -247,7 +247,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
             _buildProgramCard(
               name: '5/3/1',
               description: '週3回の頻度で行う筋力向上プログラム',
-              color: Colors.purple,
+              color: const Color(0xFFBA68C8),
               icon: Icons.looks_3,
               onTap: () {
                 Navigator.pushNamed(

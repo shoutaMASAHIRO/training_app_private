@@ -44,91 +44,60 @@ class _ProgressScreenState extends State<ProgressScreen> {
     super.dispose();
   }
 
-    Future<void> _fetchWorkoutLogs() async {
+  Future<void> _fetchWorkoutLogs() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+    try {
+      // Short delay to allow tab transition animation to finish
+      await Future.delayed(const Duration(milliseconds: 150));
+      final logs = await _apiService.getLogs();
+
+      // 実績登録画面から登録した「最重量の記録 (Max record)」のみを抽出
+      final prLogs = logs.where((log) {
+        final details = log.workoutDetails ?? '';
+        return details.contains('Max record');
+      }).toList();
+
+      final uniqueExercises = prLogs.map((log) => log.sessionTitle ?? log.menuTitle).toSet().toList();
+      uniqueExercises.sort();
 
       setState(() {
-
-        _isLoading = true;
-
-        _errorMessage = '';
-
+        _workoutLogs = prLogs;
+        _availableExercises = uniqueExercises;
+        if (_selectedExercise == null || !uniqueExercises.contains(_selectedExercise)) {
+          _selectedExercise = uniqueExercises.isNotEmpty ? uniqueExercises.first : null;
+        }
+        _isLoading = false;
       });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load workout logs: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
-      try {
+  void _onExerciseSelected(String exercise) {
+    if (_selectedExercise != exercise) {
+      setState(() {
+        _selectedExercise = exercise;
+        _touchedIndex = null;
+      });
+    }
+  }
 
-        final logs = await _apiService.getLogs();
-
-        
-
-        // 実績登録画面から登録した「最重量の記録 (Max record)」のみを抽出
-
-        // これにより、通常のワークアウト完了記録はProgressページには一切表示されなくなります
-
-        final prLogs = logs.where((log) {
-
-          final details = log.workoutDetails ?? '';
-
-          return details.contains('Max record');
-
-        }).toList();
-
-  
-
-        final uniqueExercises = prLogs.map((log) => log.sessionTitle ?? log.menuTitle).toSet().toList();
-
-        uniqueExercises.sort();
-
-  
-
-        setState(() {
-
-          _workoutLogs = prLogs;
-
-          _availableExercises = uniqueExercises;
-
-          // Keep selected exercise if it's still available
-
-          if (_selectedExercise == null || !uniqueExercises.contains(_selectedExercise)) {
-
-            _selectedExercise = uniqueExercises.isNotEmpty ? uniqueExercises.first : null;
-
-          }
-
-          _isLoading = false;
-
-        });
-
-      } catch (e) {
-
-  
-            setState(() {
-              _errorMessage = 'Failed to load workout logs: $e';
-              _isLoading = false;
-            });
-          }
-        }
-      
-        void _onExerciseSelected(String exercise) {
-          if (_selectedExercise != exercise) {
-            setState(() {
-              _selectedExercise = exercise;
-              _touchedIndex = null;
-            });
-          }
-        }
-        Color _getExerciseColor(String? exercise, ColorScheme colorScheme) {
+  Color _getExerciseColor(String? exercise, ColorScheme colorScheme) {
     return colorScheme.primary;
   }
 
   List<dynamic> _getEventsForDay(DateTime day) {
-    return _workoutLogs
-        .where((log) => isSameDay(log.completedDate, day))
-        .toList();
+    return _workoutLogs.where((log) => isSameDay(log.completedDate, day)).toList();
   }
 
   void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
     if (isSameDay(_selectedDay, selectedDay)) {
-      // Already selected, navigate to add manual log screen
       Navigator.pushNamed(
         context,
         '/add_manual_log',
@@ -139,7 +108,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
         }
       });
     } else {
-      // New date selected, just update state to show logs
       setState(() {
         _selectedDay = selectedDay;
         _focusedDay = focusedDay;
@@ -160,7 +128,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
     _dailyWeights.clear();
     for (var log in filteredLogs) {
       if (log.workoutDetails != null && log.workoutDetails!.contains('@')) {
-        // Try to find weight in format "@ XX.Xkg"
         final regex = RegExp(r'@\s*(\d+(\.\d+)?)kg');
         final match = regex.firstMatch(log.workoutDetails!);
         if (match != null) {
@@ -168,7 +135,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
           final weight = double.tryParse(weightString!);
           if (weight != null) {
             final date = DateUtils.dateOnly(log.completedDate);
-            // Keep the maximum weight for that day if there are multiple logs
             if (!_dailyWeights.containsKey(date) || weight > _dailyWeights[date]!) {
               _dailyWeights[date] = weight;
             }
@@ -179,11 +145,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     final List<FlSpot> spots = [];
     final sortedDates = _dailyWeights.keys.toList()..sort();
-    
     for (int i = 0; i < sortedDates.length; i++) {
       spots.add(FlSpot(i.toDouble(), _dailyWeights[sortedDates[i]]!));
     }
-
     return spots;
   }
 
@@ -207,9 +171,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           children: [
             Icon(Icons.error_outline, size: 48, color: colorScheme.error),
             const SizedBox(height: 16),
-            Text(_errorMessage,
-                style: TextStyle(color: colorScheme.error),
-                textAlign: TextAlign.center),
+            Text(_errorMessage, style: TextStyle(color: colorScheme.error), textAlign: TextAlign.center),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _fetchWorkoutLogs,
@@ -228,12 +190,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
       onRefresh: _fetchWorkoutLogs,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 24.0), // Added vertical padding
+        padding: const EdgeInsets.symmetric(vertical: 24.0),
         child: Column(
           children: [
-            // Header with title
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12), // Increased padding
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Row(
                 children: [
                   Icon(Icons.calendar_month, color: colorScheme.primary),
@@ -248,10 +209,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ],
               ),
             ),
-
-            // Calendar Card
             Card(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), // Increased horizontal margin
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -279,10 +238,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       _focusedDay = focusedDay;
                     });
                   },
-                  headerStyle: const HeaderStyle(
+                  headerStyle: HeaderStyle(
                     titleCentered: true,
                     formatButtonVisible: false,
-                    titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.grey.shade400),
+                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.grey.shade400),
                   ),
                   calendarBuilders: CalendarBuilders(
                     markerBuilder: (context, day, events) {
@@ -292,9 +253,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         child: Container(
                           width: 6,
                           height: 6,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: colorScheme.primary,
+                            color: Color(0xFF81C784), // Light Green
                           ),
                         ),
                       );
@@ -329,8 +290,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: _isHeaderHovered
-                                      ? colorScheme.primary.withAlpha(150)
-                                      : colorScheme.onSurface,
+                                      ? const Color(0xFF81C784) // Light Green hover
+                                      : const Color(0xFF424242), // Dark Grey
                                 ),
                               ),
                             ),
@@ -346,17 +307,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       BoxDecoration decoration;
                       if (isSelected) {
                         decoration = BoxDecoration(
-                          color: colorScheme.primary,
+                          color: const Color(0xFF81C784), // Light Green
                           borderRadius: BorderRadius.circular(8.0),
                         );
                       } else if (isToday) {
                         decoration = BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.1),
+                          color: const Color(0xFF81C784).withValues(alpha: 0.2), // Faint Green
                           borderRadius: BorderRadius.circular(8.0),
                         );
                       } else if (isHovered) {
                         decoration = BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
+                          color: Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8.0),
                         );
                       } else {
@@ -374,9 +335,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             child: Text(
                               '${day.day}',
                               style: TextStyle(
-                                color: isSelected
-                                    ? colorScheme.onPrimary
-                                    : colorScheme.onSurface,
+                                color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
                               ),
                             ),
                           ),
@@ -387,7 +346,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
               ),
             ),
-
             if (_selectedDay != null) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -422,13 +380,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    ..._getEventsForDay(_selectedDay!)
-                        .map((event) => _buildDayLogCard(event as WorkoutLog, theme))
-                        .toList(),
+                    const SizedBox(height: 12),
+                    ..._getEventsForDay(_selectedDay!).map((event) => _buildDayLogCard(event as WorkoutLog, theme)).toList(),
                     if (_getEventsForDay(_selectedDay!).isEmpty)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        padding: const EdgeInsets.symmetric(vertical: 16.0),
                         child: Text(
                           'この日の記録はありません',
                           style: TextStyle(color: colorScheme.outline, fontSize: 13),
@@ -438,10 +394,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
               ),
             ],
-
-            const Divider(height: 64, indent: 24, endIndent: 24, thickness: 0.5), // More space around divider
-
-            // Header with title for chart
+            const Divider(height: 64, indent: 24, endIndent: 24, thickness: 0.5),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: Row(
@@ -458,49 +411,50 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ],
               ),
             ),
-
             if (_availableExercises.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 32.0),
                 child: Column(
                   children: [
-                    Icon(Icons.fitness_center,
-                        size: 48, color: colorScheme.outline.withValues(alpha: 0.5)),
+                    Icon(Icons.fitness_center, size: 48, color: colorScheme.outline.withValues(alpha: 0.5)),
                     const SizedBox(height: 16),
                     Text(
                       '重量推移データがありません',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(color: colorScheme.outline),
+                      style: theme.textTheme.titleMedium?.copyWith(color: colorScheme.outline),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '「記録を追加」から実績を登録すると\nここに進捗グラフが表示されます',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: colorScheme.outline.withValues(alpha: 0.7)),
+                      style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.outline.withValues(alpha: 0.7)),
                     ),
                   ],
                 ),
               )
             else ...[
-              // Exercise selection dropdown
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: DropdownButtonFormField<String>(
                   value: _selectedExercise,
                   decoration: InputDecoration(
                     labelText: '種目を選択',
-                    labelStyle: TextStyle(
-                      color: colorScheme.onSurface.withValues(alpha: 0.5),
-                      fontSize: 14,
+                    labelStyle: const TextStyle(
+                      color: Color(0xFF81C784),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      letterSpacing: 1.0,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none, // Remove border
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    fillColor: Colors.white,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
                     ),
-                    filled: true,
-                    fillColor: Colors.grey.shade100, // Subtle background
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Color(0xFF81C784), width: 2),
+                    ),
                   ),
                   items: _availableExercises.map((exercise) {
                     return DropdownMenuItem<String>(
@@ -508,8 +462,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       child: Text(
                         exercise,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF424242),
+                          fontSize: 16,
                         ),
                       ),
                     );
@@ -517,22 +472,29 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   onChanged: (value) {
                     if (value != null) _onExerciseSelected(value);
                   },
-                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: colorScheme.onSurface.withValues(alpha: 0.4)),
+                  icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF81C784)),
                   dropdownColor: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
-
               const SizedBox(height: 8),
-
-              // Selected point info card
-              if (_touchedIndex != null && _touchedIndex! < sortedDates.length)
-                _buildSelectedPointCard(sortedDates, spots, colorScheme, theme),
-
+              if (_touchedIndex != null && _touchedIndex! < sortedDates.length) _buildSelectedPointCard(sortedDates, spots, colorScheme, theme),
               // Chart
               Container(
                 height: 300,
-                padding: const EdgeInsets.fromLTRB(8, 16, 32, 16), // Increased right padding
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.fromLTRB(8, 16, 32, 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
                 child: spots.isEmpty
                     ? Center(
                         child: Column(
@@ -557,8 +519,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         child: _buildChart(spots, sortedDates, colorScheme),
                       ),
               ),
-
-              // Statistics summary
               if (spots.isNotEmpty) _buildStatisticsSummary(spots, colorScheme, theme),
             ],
             const SizedBox(height: 24),
@@ -569,25 +529,143 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   Widget _buildDayLogCard(WorkoutLog log, ThemeData theme) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
+    final colorScheme = theme.colorScheme;
+    
+    // パースして重量部分を強調表示
+    String weightDisplay = '---';
+    String repsDisplay = '';
+    
+    final details = log.workoutDetails ?? '';
+    if (details.contains('@')) {
+      final afterAt = details.split('@')[1].trim();
+      if (afterAt.contains(' x ')) {
+        final parts = afterAt.split(' x ');
+        weightDisplay = parts[0]; // XX.Xkg
+        repsDisplay = parts[1];   // YY reps
+      } else {
+        weightDisplay = afterAt;  // XX.Xkg
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20), // More rounded
+        border: Border.all(color: const Color(0xFF81C784).withValues(alpha: 0.2), width: 1.5), // Light Green border
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF81C784).withValues(alpha: 0.05), // Faint Green shadow
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text(
-          log.menuTitle,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(log.workoutDetails ?? ''),
-        trailing: IconButton(
-          icon: Icon(Icons.delete_outline, color: theme.colorScheme.error, size: 20),
-          onPressed: () => _confirmDeleteLog(log),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          visualDensity: VisualDensity.compact,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // 左側の細いアクセントバー
+              Container(
+                width: 6,
+                color: const Color(0xFF81C784), // Light Green
+              ),
+              const SizedBox(width: 16),
+              // 種目情報
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.stars_rounded, size: 16, color: Color(0xFFFFB74D)), // Light Orange star
+                          const SizedBox(width: 6),
+                          Text(
+                            'PERSONAL RECORD',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.grey.shade400,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        log.menuTitle,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF424242), // Dark Grey
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // 数値表示エリア
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: Colors.grey.shade100, width: 1),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      weightDisplay.replaceAll('kg', ''),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'monospace',
+                        color: Color(0xFF424242), // Dark Grey
+                      ),
+                    ),
+                    const Text(
+                      'kg',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    if (repsDisplay.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        repsDisplay,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFBA68C8), // Light Purple for reps
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // 削除ボタン
+              Material(
+                color: Colors.red.shade50, // Subtle red bg for delete
+                child: InkWell(
+                  onTap: () => _confirmDeleteLog(log),
+                  child: Container(
+                    width: 56, // Wider touch target
+                    alignment: Alignment.center,
+                    child: Icon(Icons.delete_outline_rounded, color: Colors.red.shade300, size: 22),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -613,7 +691,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ],
       ),
     );
-
     if (confirmed == true && log.id != null) {
       await _deleteLog(log.id!);
     }
@@ -624,42 +701,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
       await _apiService.deleteLog(id);
       await _fetchWorkoutLogs();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('記録を削除しました')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('記録を削除しました')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('削除に失敗しました: $e'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e'), backgroundColor: Colors.red));
       }
     }
   }
 
-  Widget _buildSimpleStat(IconData icon, Color color, int count) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 4),
-          Text('$count'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSelectedPointCard(List<DateTime> sortedDates, List<FlSpot> spots,
-      ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildSelectedPointCard(List<DateTime> sortedDates, List<FlSpot> spots, ColorScheme colorScheme, ThemeData theme) {
     final date = sortedDates[_touchedIndex!];
     final weight = spots[_touchedIndex!].y;
-
-    // Calculate change from previous point
     String changeText = '';
     Color changeColor = colorScheme.onSurface;
     IconData changeIcon = Icons.remove;
-
     if (_touchedIndex! > 0) {
       final prevWeight = spots[_touchedIndex! - 1].y;
       final change = weight - prevWeight;
@@ -676,34 +732,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
         changeIcon = Icons.remove;
       }
     }
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
-        // Removed Border.all
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           Column(
             children: [
-              Text(
-                DateFormat('yyyy/MM/dd').format(date),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
+              Text(DateFormat('yyyy/MM/dd').format(date), style: theme.textTheme.labelMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
               const SizedBox(height: 4),
-              Text(
-                '${weight.toStringAsFixed(1)}kg',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
-                ),
-              ),
+              Text('${weight.toStringAsFixed(1)}kg', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary)),
             ],
           ),
           if (changeText.isNotEmpty)
@@ -711,13 +754,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               children: [
                 Icon(changeIcon, color: changeColor, size: 20),
                 const SizedBox(width: 4),
-                Text(
-                  changeText,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: changeColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(changeText, style: theme.textTheme.titleMedium?.copyWith(color: changeColor, fontWeight: FontWeight.bold)),
               ],
             ),
         ],
@@ -725,49 +762,29 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  Widget _buildChart(
-      List<FlSpot> spots, List<DateTime> sortedDates, ColorScheme colorScheme) {
+  Widget _buildChart(List<FlSpot> spots, List<DateTime> sortedDates, ColorScheme colorScheme) {
     if (spots.isEmpty) return const SizedBox.shrink();
-
     final firstWeight = spots.first.y;
     final minWeight = spots.map((s) => s.y).minOrNull ?? firstWeight;
     final maxWeight = spots.map((s) => s.y).maxOrNull ?? firstWeight;
-
-    // Use the first weight as a baseline reference
-    // We round down to the nearest 10kg below the start point or min weight
     double minY = (min(minWeight, firstWeight) - 10);
     minY = (minY / 10).floor() * 10.0;
     if (minY < 0) minY = 0;
-
-    // Ensure at least a 20kg visible range for better perspective
     double maxY = max(maxWeight + 10, minY + 20);
     maxY = (maxY / 10).ceil() * 10.0;
-
     final exerciseColor = _getExerciseColor(_selectedExercise, colorScheme);
-
-    // Animate the spots
-    final animatedSpots = spots.map((spot) {
-      return FlSpot(spot.x, spot.y);
-    }).toList();
-
+    final animatedSpots = spots.map((spot) => FlSpot(spot.x, spot.y)).toList();
     return LineChart(
       LineChartData(
         gridData: FlGridData(
           show: true,
-          drawVerticalLine: true,
-          verticalInterval: 1, // Draw a line for every data point
+          drawVerticalLine: false,
           horizontalInterval: 5,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-              strokeWidth: 0.5,
-              dashArray: [5, 5],
-            );
-          },
-          getDrawingVerticalLine: (value) {
-            return FlLine(
               color: colorScheme.outlineVariant.withValues(alpha: 0.1),
               strokeWidth: 0.5,
+              dashArray: [5, 5],
             );
           },
         ),
@@ -775,28 +792,19 @@ class _ProgressScreenState extends State<ProgressScreen> {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 42,
+              reservedSize: 32,
               interval: spots.length > 10 ? (spots.length / 5).ceil().toDouble() : 1,
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
                 if (index >= 0 && index < sortedDates.length) {
                   return SideTitleWidget(
                     meta: meta,
-                    fitInside: SideTitleFitInsideData(
-                      enabled: true,
-                      axisPosition: meta.axisPosition,
-                      parentAxisSize: meta.parentAxisSize,
-                      distanceFromEdge: 0,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        DateFormat('M/d').format(sortedDates[index]),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                    child: Text(
+                      DateFormat('M/d').format(sortedDates[index]),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                       ),
                     ),
                   );
@@ -808,20 +816,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 45,
+              reservedSize: 40,
               interval: 5,
               getTitlesWidget: (value, meta) {
                 if (value == minY || value == maxY) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Text(
-                    '${value.toInt()}kg',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                return Text(
+                  '${value.toInt()}kg',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                   ),
                 );
               },
@@ -830,33 +835,35 @@ class _ProgressScreenState extends State<ProgressScreen> {
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-        clipData: const FlClipData.none(), // Allow labels/dots to draw outside the chart area
-        borderData: FlBorderData(
-          show: true,
-          border: Border(
-            bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3), width: 1),
-            left: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3), width: 1),
-            right: const BorderSide(color: Colors.transparent),
-            top: const BorderSide(color: Colors.transparent),
-          ),
-        ),
+        clipData: const FlClipData.none(),
+        borderData: FlBorderData(show: false), // Removed borders for an open feel
         lineBarsData: [
           LineChartBarData(
             spots: animatedSpots,
-            isCurved: false, // Linear line chart
+            isCurved: false,
             barWidth: 3,
-            color: exerciseColor,
+            color: const Color(0xFF81C784), // Light Green
             isStrokeCapRound: true,
-            belowBarData: BarAreaData(show: false), // Removed shaded area
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF81C784).withValues(alpha: 0.2), // Light Green fade
+                  const Color(0xFF81C784).withValues(alpha: 0.0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
             dotData: FlDotData(
               show: true,
               getDotPainter: (spot, percent, barData, index) {
                 final isTouched = index == _touchedIndex;
                 return FlDotCirclePainter(
                   radius: isTouched ? 6 : 4,
-                  color: isTouched ? colorScheme.tertiary : exerciseColor,
-                  strokeWidth: isTouched ? 3 : 2,
-                  strokeColor: colorScheme.surface,
+                  color: isTouched ? const Color(0xFFFFB74D) : const Color(0xFF81C784), // Orange touch, Green normal
+                  strokeWidth: 3,
+                  strokeColor: Colors.white,
                 );
               },
             ),
@@ -882,34 +889,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
           touchTooltipData: LineTouchTooltipData(
             fitInsideHorizontally: true,
             fitInsideVertically: true,
-            getTooltipColor: (touchedSpot) => colorScheme.surfaceContainerHighest,
-            tooltipBorder: BorderSide(color: colorScheme.outlineVariant),
+            getTooltipColor: (touchedSpot) => const Color(0xFF81C784), // Light Green
             tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             getTooltipItems: (List<LineBarSpot> touchedSpots) {
               return touchedSpots.map((LineBarSpot touchedSpot) {
-                final index = touchedSpot.spotIndex;
-                if (index >= 0 && index < sortedDates.length) {
-                  final date = sortedDates[index];
-                  return LineTooltipItem(
-                    '${DateFormat('MM/dd').format(date)}\n',
-                    TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                      fontWeight: FontWeight.normal,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: '${touchedSpot.y.toStringAsFixed(1)}kg',
-                        style: TextStyle(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  );
-                }
-                return null;
+                return LineTooltipItem(
+                  '${touchedSpot.y.toStringAsFixed(1)}kg',
+                  const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                );
               }).toList();
             },
           ),
@@ -917,12 +904,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
           getTouchedSpotIndicator: (barData, spotIndexes) {
             return spotIndexes.map((index) {
               return TouchedSpotIndicatorData(
-                FlLine(
-                  color: colorScheme.primary.withValues(alpha: 0.5),
-                  strokeWidth: 2,
-                  dashArray: [5, 5],
-                ),
-                FlDotData(show: false), // Dots are handled in lineBarsData
+                FlLine(color: Colors.black12, strokeWidth: 1),
+                FlDotData(show: false),
               );
             }).toList();
           },
@@ -932,8 +915,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  Widget _buildStatisticsSummary(
-      List<FlSpot> spots, ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildStatisticsSummary(List<FlSpot> spots, ColorScheme colorScheme, ThemeData theme) {
     final weights = spots.map((s) => s.y).toList();
     final minWeight = weights.min;
     final maxWeight = weights.max;
@@ -941,13 +923,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final firstWeight = weights.first;
     final lastWeight = weights.last;
     final totalChange = lastWeight - firstWeight;
-
+    
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withAlpha((255 * 0.5).round()),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
@@ -955,23 +937,22 @@ class _ProgressScreenState extends State<ProgressScreen> {
             '統計サマリー',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
+              color: const Color(0xFF424242),
+              letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatItem('最小', '${minWeight.toStringAsFixed(1)}kg',
-                  Icons.arrow_downward, Colors.blue, theme),
-              _buildStatItem('最大', '${maxWeight.toStringAsFixed(1)}kg',
-                  Icons.arrow_upward, Colors.orange, theme),
-              _buildStatItem('平均', '${avgWeight.toStringAsFixed(1)}kg',
-                  Icons.analytics, colorScheme.primary, theme),
+              _buildStatItem('最小', '${minWeight.toStringAsFixed(1)}kg', Icons.arrow_downward, Colors.black45, theme),
+              _buildStatItem('最大', '${maxWeight.toStringAsFixed(1)}kg', Icons.arrow_upward, const Color(0xFF424242), theme),
+              _buildStatItem('平均', '${avgWeight.toStringAsFixed(1)}kg', Icons.analytics_outlined, Colors.black54, theme),
               _buildStatItem(
                 '変化',
                 '${totalChange >= 0 ? '+' : ''}${totalChange.toStringAsFixed(1)}kg',
                 totalChange >= 0 ? Icons.trending_up : Icons.trending_down,
-                totalChange >= 0 ? Colors.green : Colors.red,
+                totalChange >= 0 ? const Color(0xFF424242) : Colors.black38,
                 theme,
               ),
             ],
@@ -981,24 +962,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color,
-      ThemeData theme) {
+  Widget _buildStatItem(String label, String value, IconData icon, Color color, ThemeData theme) {
     return Column(
       children: [
         Icon(icon, color: color, size: 20),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurface.withAlpha((255 * 0.6).round()),
-          ),
-        ),
+        Text(value, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
+        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurface.withAlpha((255 * 0.6).round()))),
       ],
     );
   }

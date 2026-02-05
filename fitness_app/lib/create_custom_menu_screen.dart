@@ -90,7 +90,7 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
   }
 
   Color _getThemeColor() {
-    return Colors.black87;
+    return const Color(0xFF81C784); // Light Green
   }
 
   Future<void> _saveMenu() async {
@@ -258,13 +258,13 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveMenu,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black87,
+                  backgroundColor: const Color(0xFF81C784), // Light Green
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 child: _isSaving
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white))
-                    : const Text('プログラムを保存', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                    : const Text('プログラムを保存', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
               ),
             ),
             const SizedBox(height: 24),
@@ -299,17 +299,41 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     value: ex['name'],
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '種目',
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                      labelStyle: const TextStyle(color: Color(0xFF81C784), fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      fillColor: Colors.white,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: Color(0xFF81C784), width: 2),
+                      ),
                     ),
-                    items: _exerciseOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: _exerciseOptions.map((e) => DropdownMenuItem(
+                      value: e, 
+                      child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
+                    )).toList(),
                     onChanged: (val) => setState(() => ex['name'] = val),
+                    icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF81C784), size: 20),
+                    dropdownColor: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => _removeExercise(index),
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: () => _removeExercise(index),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
+                  ),
                 ),
               ],
             ),

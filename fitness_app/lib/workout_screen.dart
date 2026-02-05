@@ -176,7 +176,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: const Color(0xFF424242),
                       ),
                     ),
                   ],
@@ -253,7 +253,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     style: TextStyle(
                       fontSize: 40,
                       fontWeight: FontWeight.w300,
-                      color: isRunning ? Colors.black87 : Colors.grey.shade600,
+                      color: isRunning ? const Color(0xFF424242) : Colors.grey.shade600,
                       fontFamily: 'monospace',
                     ),
                   ),
@@ -261,13 +261,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      OutlinedButton(
+                      ElevatedButton(
                         onPressed: isRunning ? _stopStopwatch : _startStopwatch,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: isRunning ? Colors.orange.shade700 : Colors.green.shade700,
-                          side: BorderSide(
-                            color: isRunning ? Colors.orange.shade700 : Colors.green.shade700,
-                          ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isRunning ? const Color(0xFFFFB74D) : const Color(0xFF81C784), // Orange stop, Green start
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: Text(isRunning ? 'ストップ' : 'スタート'),
                       ),
@@ -276,7 +276,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                         onPressed: _resetStopwatch,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.grey.shade600,
-                          side: BorderSide(color: Colors.grey.shade400),
+                          side: BorderSide(color: Colors.grey.shade300),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: const Text('リセット'),
                       ),
@@ -292,20 +294,20 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: ElevatedButton(
                   onPressed: _onSuccess,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.green.shade700,
-                    side: BorderSide(color: Colors.green.shade700),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF81C784), // Light Green
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   child: const Text(
                     '成功',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -313,20 +315,20 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: OutlinedButton(
+                child: ElevatedButton(
                   onPressed: _onFail,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red.shade700,
-                    side: BorderSide(color: Colors.red.shade700),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFB74D), // Light Orange
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   child: const Text(
                     '失敗',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -334,14 +336,14 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
           // カウントリセット
           TextButton(
             onPressed: _resetCounts,
-            child: Text(
+            child: const Text(
               'カウントをリセット',
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: Color(0xFFBA68C8), fontWeight: FontWeight.bold), // Light Purple
             ),
           ),
           const SizedBox(height: 24),
@@ -367,8 +369,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('ワークアウト完了！'),
-                      backgroundColor: Colors.green,
+                      content: Text('ワークアウト完了！ 🎉'),
+                      backgroundColor: Color(0xFF81C784),
                     ),
                   );
                   Navigator.pop(context);
@@ -378,23 +380,23 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('エラー: $e'),
-                      backgroundColor: Colors.red,
+                      backgroundColor: const Color(0xFFFFB74D),
                     ),
                   );
                 }
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black87,
+              backgroundColor: const Color(0xFFBA68C8), // Light Purple
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             child: const Text(
               'ワークアウト完了',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
           ),
         ],
@@ -529,7 +531,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     style: TextStyle(
                       fontSize: 40,
                       fontWeight: FontWeight.w300,
-                      color: isRunning ? Colors.black87 : Colors.grey.shade600,
+                      color: isRunning ? const Color(0xFF424242) : Colors.grey.shade600,
                       fontFamily: 'monospace',
                     ),
                   ),
@@ -662,14 +664,14 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87,
+                    backgroundColor: const Color(0xFF81C784), // Light Green
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text('ワークアウト完了'),
+                  child: const Text('ワークアウト完了', style: TextStyle(fontWeight: FontWeight.w900)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -690,9 +692,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                       );
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('ワークアウトを記録しました'),
-                            backgroundColor: Colors.red.shade400,
+                          const SnackBar(
+                            content: Text('ワークアウトを記録しました'),
+                            backgroundColor: Color(0xFFFFB74D), // Light Orange
                           ),
                         );
                         Navigator.pop(context, 'fail');
@@ -702,21 +704,21 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('エラー: $e'),
-                            backgroundColor: Colors.red,
+                            backgroundColor: const Color(0xFFFFB74D),
                           ),
                         );
                       }
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
+                    backgroundColor: const Color(0xFFFFB74D), // Light Orange
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text('ワークアウト失敗'),
+                  child: const Text('ワークアウト失敗', style: TextStyle(fontWeight: FontWeight.w900)),
                 ),
               ),
             ],

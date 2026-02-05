@@ -282,23 +282,32 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: _exerciseNameController.text.isNotEmpty && _exerciseOptions.contains(_exerciseNameController.text)
                           ? _exerciseNameController.text
                           : null,
                       decoration: InputDecoration(
                         hintText: '種目を選択してください',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                        fillColor: Colors.grey.shade50,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
+                        ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: themeColor, width: 2),
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: const BorderSide(color: Color(0xFF81C784), width: 2),
                         ),
                       ),
                       items: _exerciseOptions.map((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
-                          child: Text(value),
+                          child: Text(
+                            value,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+                          ),
                         );
                       }).toList(),
                       onChanged: (String? newValue) {
@@ -306,6 +315,9 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                           _exerciseNameController.text = newValue ?? '';
                         });
                       },
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF81C784)),
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ],
                 ),
@@ -417,10 +429,10 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveLog,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black87,
+                  backgroundColor: const Color(0xFF81C784), // Light Green
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   elevation: 0,
                 ),
@@ -437,7 +449,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                           SizedBox(width: 10),
                           Text(
                             '実績を保存',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                           ),
                         ],
                       ),

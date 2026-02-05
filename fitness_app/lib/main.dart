@@ -36,25 +36,38 @@ class FitnessApp extends StatelessWidget {
         // Add other locales you support
       ],
       theme: ThemeData.light().copyWith(
-        scaffoldBackgroundColor: Colors.white,
-        primaryColor: Colors.black87,
+        scaffoldBackgroundColor: const Color(0xFFF8F9FA), // Slightly off-white for depth
+        primaryColor: const Color(0xFF81C784), // Light Green
         colorScheme: const ColorScheme.light().copyWith(
-          primary: Colors.black87,
-          secondary: Colors.black,
+          primary: const Color(0xFF81C784), // Light Green
+          secondary: const Color(0xFFBA68C8), // Light Purple
+          tertiary: const Color(0xFFFFB74D), // Light Orange
+          surface: Colors.white,
+          onPrimary: Colors.white,
+          onSecondary: Colors.white,
+          onSurface: const Color(0xFF424242), // Darker grey for text readability
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
+          foregroundColor: Color(0xFF424242), // Dark grey text
           elevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            color: Color(0xFF424242),
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             foregroundColor: Colors.white,
-            backgroundColor: Colors.black87,
+            backgroundColor: const Color(0xFF81C784), // Light Green
+            elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16), // More rounded
+              borderRadius: BorderRadius.circular(20),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 18), // Increased padding
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 18),
             textStyle: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -64,19 +77,38 @@ class FitnessApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFFF8F8F8),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18), // Increased padding
+          fillColor: const Color(0xFFF9FAFB), // Very light grey/white
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             borderSide: BorderSide.none,
           ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: const BorderSide(color: Color(0xFF81C784), width: 2), // Light Green
+          ),
           hintStyle: TextStyle(color: Colors.grey[400]),
+          prefixIconColor: const Color(0xFFBA68C8), // Light Purple icons
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            foregroundColor: Colors.black87,
+            foregroundColor: const Color(0xFFBA68C8), // Light Purple
+            textStyle: const TextStyle(fontWeight: FontWeight.bold),
           ),
-        )
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: Color(0xFFF5F5F5), width: 1.5),
+          ),
+          margin: EdgeInsets.zero,
+        ),
       ),
       initialRoute: '/',
       routes: {

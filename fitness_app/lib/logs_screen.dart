@@ -29,6 +29,8 @@ class _LogsScreenState extends State<LogsScreen> {
 
   Future<void> _loadLogs() async {
     try {
+      // Short delay to allow tab transition animation to finish
+      await Future.delayed(const Duration(milliseconds: 150));
       final allLogs = await _apiService.getLogs();
       
       // Progressで登録した「最重量の記録 (Max record)」を除外する
@@ -98,11 +100,11 @@ class _LogsScreenState extends State<LogsScreen> {
   Color _getMenuColor(String menuTitle) {
     switch (menuTitle) {
       case 'Smolov Jr.':
-        return Colors.red;
+        return const Color(0xFFFFB74D); // Light Orange
       case '10x10':
-        return Colors.blue;
+        return const Color(0xFF81C784); // Light Green
       case '5/3/1':
-        return Colors.purple;
+        return const Color(0xFFBA68C8); // Light Purple
       default:
         return Colors.grey;
     }
@@ -128,11 +130,11 @@ class _LogsScreenState extends State<LogsScreen> {
             Card(
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(12.0),
                 child: TableCalendar(
                   firstDay: DateTime.utc(2020, 1, 1),
                   lastDay: DateTime.utc(2030, 12, 31),
@@ -158,24 +160,25 @@ class _LogsScreenState extends State<LogsScreen> {
                     titleCentered: true,
                     formatButtonVisible: false,
                     titleTextStyle: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: Color(0xFF424242),
                     ),
-                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.grey.shade700),
-                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.grey.shade700),
+                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.grey.shade400),
+                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.grey.shade400),
                   ),
                   calendarStyle: CalendarStyle(
                     todayDecoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: const Color(0xFF81C784).withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     selectedDecoration: const BoxDecoration(
-                      color: Colors.black87,
+                      color: Color(0xFF81C784),
                       shape: BoxShape.circle,
                     ),
-                    todayTextStyle: const TextStyle(color: Colors.black87),
+                    todayTextStyle: const TextStyle(color: Color(0xFF424242), fontWeight: FontWeight.bold),
                     markerDecoration: const BoxDecoration(
-                      color: Colors.green,
+                      color: Color(0xFFBA68C8), // Light Purple markers
                       shape: BoxShape.circle,
                     ),
                     markerSize: 6,
