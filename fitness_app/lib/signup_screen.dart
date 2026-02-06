@@ -162,7 +162,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       _successMessage,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        color: Colors.green,
+                        color: Color(0xFF00ACC1),
                         fontSize: 14,
                       ),
                     ),
@@ -170,9 +170,9 @@ class _SignupScreenState extends State<SignupScreen> {
 
                 TextField(
                   controller: _usernameController,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                   decoration: const InputDecoration(
                     hintText: 'Username',
-                    prefixIcon: Icon(Icons.person_outline),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -180,9 +180,9 @@ class _SignupScreenState extends State<SignupScreen> {
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                   decoration: const InputDecoration(
                     hintText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -190,9 +190,9 @@ class _SignupScreenState extends State<SignupScreen> {
                 TextField(
                   controller: _confirmPasswordController,
                   obscureText: true,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                   decoration: const InputDecoration(
                     hintText: 'Confirm Password',
-                    prefixIcon: Icon(Icons.lock_reset_outlined),
                   ),
                 ),
                 const SizedBox(height: 32),

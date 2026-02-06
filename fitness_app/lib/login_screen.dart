@@ -76,41 +76,26 @@ class _LoginScreenState extends State<LoginScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Icon(
-                  Icons.fitness_center,
-                  size: 80,
-                  color: theme.primaryColor,
-                ),
-                const SizedBox(height: 16),
-
+                // Header
                 Text(
-                  'FitTrackr',
-                  textAlign: TextAlign.center,
+                  'Sign In',
+                  textAlign: TextAlign.left,
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: theme.primaryColor,
                   ),
                 ),
-                const SizedBox(height: 8),
-
-                Text(
-                  'Welcome back!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 32),
 
                 if (_errorMessage.isNotEmpty)
                   Padding(
@@ -125,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                // Username Field with Autocomplete
+                // Username Field
                 Autocomplete<String>(
                   optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text == '') {
@@ -152,9 +137,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     return TextField(
                       controller: _usernameController,
                       focusNode: fieldFocusNode,
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                       decoration: const InputDecoration(
                         hintText: 'Username',
-                        prefixIcon: Icon(Icons.person_outline),
                       ),
                       keyboardType: TextInputType.text,
                     );
@@ -166,38 +151,54 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                   decoration: const InputDecoration(
                     hintText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline),
                   ),
                 ),
                 const SizedBox(height: 32),
 
-                // Login Button
+                // Sign In Button
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : SizedBox(
                         height: 50,
                         child: ElevatedButton(
                           onPressed: _login,
-                          child: const Text('Login'),
+                          style: ElevatedButton.styleFrom(
+                             backgroundColor: const Color(0xFF00E5FF),
+                          ),
+                          child: const Text(
+                            'SIGN IN',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
 
-                // Sign up navigation
+                // Create Account
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "Don't have an account?",
-                      style: TextStyle(color: Colors.grey[700]),
+                      "Don't have Account? ",
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
-                    TextButton(
-                      onPressed: () {
+                    GestureDetector(
+                      onTap: () {
                         Navigator.pushNamed(context, '/signup');
                       },
-                      child: const Text('Sign Up'),
+                      child: Text(
+                        'Create Account',
+                        style: TextStyle(
+                          color: theme.primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),

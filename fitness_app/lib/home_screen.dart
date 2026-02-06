@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Welcome Back!'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Color(0xFF00ACC1)),
             onPressed: () {
               Navigator.pushReplacementNamed(context, '/');
             },
@@ -118,8 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  DateTime? _hoveredDay; // For day cell hover effect
-  bool _isHeaderHovered = false; // For header hover effect
+  bool _isProgramsExpanded = false; // Add expansion state, default to hidden
 
   @override
   void initState() {
@@ -148,7 +147,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<dynamic> _getEventsForDay(
       DateTime day, List<WorkoutSchedule> schedules) {
     return schedules
-        .where((s) => isSameDay(s.scheduledDate, day))
+        .where((s) => isSameDay(s.scheduledDate, day) && !s.isCompleted)
         .toList();
   }
 
@@ -179,7 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Workout marked as complete! 🎉'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00ACC1),
           ),
         );
       }
@@ -195,20 +194,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _deleteSchedule(int id) async {
+  Future<void> _confirmDeleteSchedule(int id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Column(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+            SizedBox(height: 16),
+            Text(
+              'スケジュールの削除',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+            ),
+          ],
+        ),
+        content: const Text(
+          'このスケジュールを削除しますか？',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161)),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('キャンセル', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('削除', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _performDeleteSchedule(id);
+    }
+  }
+
+  Future<void> _performDeleteSchedule(int id) async {
     try {
       await _apiService.deleteSchedule(id);
       await _refreshData();
        if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Schedule deleted.')),
+          const SnackBar(
+            content: Text('スケジュールを削除しました'),
+            backgroundColor: Color(0xFF00ACC1),
+          ),
         );
       }
     } catch (e) {
        if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('エラー: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -225,80 +286,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ).then((_) => _refreshData());
   }
 
-  Future<void> _adjustNext10x10Workout(
-      WorkoutSchedule completedSchedule, bool wasSuccess) async {
-    try {
-      final allSchedules = await _apiService.getSchedules();
-      // Ensure schedules are sorted by date to find the correct next one
-      allSchedules.sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
-
-      // 残りのすべての未完了10x10スケジュールを取得
-      final remainingSchedules = allSchedules
-          .where((s) =>
-              s.menuTitle == '10x10' &&
-              !s.isCompleted &&
-              s.scheduledDate.isAfter(completedSchedule.scheduledDate))
-          .toList();
-
-      if (remainingSchedules.isEmpty) return;
-
-      final details = completedSchedule.workoutDetails;
-      double currentWeight = 0;
-      if (details != null && details.contains('@')) {
-        final weightString =
-            details.split('@')[1].trim().split('kg')[0].trim();
-        currentWeight = double.tryParse(weightString) ?? 0;
-      }
-
-      if (currentWeight <= 0) return;
-
-      // 成功時: 次から +2.5, +5.0, +7.5, ...
-      // 失敗時: 次は同じ重量、その次から +2.5, +5.0, ...
-      final List<WorkoutSchedule> updatedSchedules = [];
-      for (int i = 0; i < remainingSchedules.length; i++) {
-        final schedule = remainingSchedules[i];
-        double newWeight;
-        if (wasSuccess) {
-          // 成功: 基準重量から +2.5kg ずつ増加
-          newWeight = currentWeight + ((i + 1) * 2.5);
-        } else {
-          // 失敗: 最初は同じ重量、その後 +2.5kg ずつ増加
-          newWeight = currentWeight + (i * 2.5);
-        }
-
-        updatedSchedules.add(WorkoutSchedule(
-          id: 0,
-          scheduledDate: schedule.scheduledDate,
-          isCompleted: false,
-          menuTitle: schedule.menuTitle,
-          menuDifficulty: schedule.menuDifficulty,
-          workoutDetails: '10x10 @ ${newWeight.toStringAsFixed(1)}kg',
-        ));
-      }
-
-      // 古いスケジュールを削除して新しいスケジュールを追加
-      for (final schedule in remainingSchedules) {
-        await _apiService.deleteSchedule(schedule.id);
-      }
-      await _apiService.addSchedules(updatedSchedules);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('スケジュールの調整に失敗しました: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   void _navigateToWorkout(WorkoutSchedule schedule) {
     Navigator.pushNamed(context, '/workout', arguments: schedule)
         .then((result) async {
       if ((result == 'fail' || result == 'success') &&
           schedule.menuTitle == '10x10') {
-        await _adjustNext10x10Workout(schedule, result == 'success');
+        await _apiService.adjustNext10x10Workout(schedule, result == 'success');
       }
       _refreshData();
     });
@@ -324,7 +317,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // スケジュールが空でもダッシュボードは表示する
         final List<WorkoutSchedule> schedules = snapshot.data ?? [];
         final activeSchedules = schedules.where((s) => !s.isCompleted).toList();
-        final upcomingSchedules = activeSchedules;
+        
+        // --- 近日中の予定を3日分に制限するロジック ---
+        // 1. 日付順にソート
+        activeSchedules.sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
+        
+        // 2. 重複しない日付を抽出
+        final List<DateTime> uniqueDates = [];
+        for (var s in activeSchedules) {
+          final dateOnly = DateUtils.dateOnly(s.scheduledDate);
+          if (!uniqueDates.any((d) => isSameDay(d, dateOnly))) {
+            uniqueDates.add(dateOnly);
+          }
+        }
+        
+        // 3. 直近3日分の日付を特定
+        final targetDates = uniqueDates.take(3).toList();
+        
+        // 4. その3日間に含まれるスケジュールのみを抽出
+        final upcomingSchedules = activeSchedules.where((s) {
+          final dateOnly = DateUtils.dateOnly(s.scheduledDate);
+          return targetDates.any((d) => isSameDay(d, dateOnly));
+        }).toList();
 
         // Sort upcoming schedules: primarily by date, secondarily by Smolov Jr. preference
         upcomingSchedules.sort((s1, s2) {
@@ -346,263 +360,152 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return RefreshIndicator(
           onRefresh: _refreshData,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0), // Increased screen padding
+            padding: EdgeInsets.zero, // Full width for header
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TweenAnimationBuilder<double>(
-                  duration: const Duration(milliseconds: 300), // Faster
-                  curve: Curves.easeOutQuad,
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  builder: (context, value, child) {
-                    return Opacity(
-                      opacity: value,
-                      child: Transform.translate(
-                        offset: Offset(0, 15 * (1 - value)), // Smaller distance
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: _TodaysWorkoutSection(
-                    upcomingSchedules: upcomingSchedules,
-                    onStart: _navigateToWorkout,
-                    onAddSchedule: _navigateToAddSchedule,
-                  ),
-                ),
-                const SizedBox(height: 32), // Increased gap
-                TweenAnimationBuilder<double>(
-                  duration: const Duration(milliseconds: 350), // Faster
-                  curve: Curves.easeOutQuad,
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  builder: (context, value, child) {
-                    return Opacity(
-                      opacity: value,
-                      child: Transform.translate(
-                        offset: Offset(0, 15 * (1 - value)),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(color: Colors.grey.shade200),
+                // Calendar Header Section
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF26C6DA), Color(0xFF00ACC1)], // Cyan Gradient
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0), // More room around calendar
-                      child: TableCalendar(
-                      firstDay: DateTime.utc(2020, 1, 1),
-                      lastDay: DateTime.utc(2030, 12, 31),
-                      focusedDay: _focusedDay,
-                      calendarFormat: _calendarFormat,
-                      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                      onDaySelected: _onDaySelected,
-                      eventLoader: (day) => _getEventsForDay(day, schedules),
-                      onFormatChanged: (format) {
-                        if (_calendarFormat != format) {
-                          setState(() {
-                            _calendarFormat = format;
-                          });
-                        }
-                      },
-                      onPageChanged: (focusedDay) {
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(32),
+                      bottomRight: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 10,
+                        offset: Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: TableCalendar(
+                    firstDay: DateTime.utc(2020, 1, 1),
+                    lastDay: DateTime.utc(2030, 12, 31),
+                    focusedDay: _focusedDay,
+                    calendarFormat: _calendarFormat,
+                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                    onDaySelected: _onDaySelected,
+                    eventLoader: (day) => _getEventsForDay(day, schedules),
+                    onFormatChanged: (format) {
+                      if (_calendarFormat != format) {
                         setState(() {
-                          _focusedDay = focusedDay;
+                          _calendarFormat = format;
                         });
+                      }
+                    },
+                    onPageChanged: (focusedDay) {
+                      setState(() {
+                        _focusedDay = focusedDay;
+                      });
+                    },
+                    headerStyle: HeaderStyle(
+                      titleCentered: true,
+                      formatButtonVisible: false,
+                      titleTextStyle: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                      leftChevronIcon:
+                          const Icon(Icons.chevron_left, color: Colors.white),
+                      rightChevronIcon:
+                          const Icon(Icons.chevron_right, color: Colors.white),
+                    ),
+                    daysOfWeekStyle: const DaysOfWeekStyle(
+                      weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                      weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                    ),
+                    calendarStyle: const CalendarStyle(
+                      defaultTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                      todayDecoration: BoxDecoration(
+                        color: Colors.white30,
+                        shape: BoxShape.circle,
+                      ),
+                      todayTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      selectedDecoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      selectedTextStyle: TextStyle(color: Color(0xFF00ACC1), fontWeight: FontWeight.bold),
+                      markerDecoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    calendarBuilders: CalendarBuilders(
+                      markerBuilder: (context, day, events) {
+                        if (events.isEmpty) return const SizedBox.shrink();
+                        // Simplified white markers for cleaner look on blue
+                        return Positioned(
+                          bottom: 1,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(
+                              events.length > 3 ? 3 : events.length, 
+                              (index) => Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 1.0),
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
                       },
-                      headerStyle: HeaderStyle(
-                        titleCentered: true,
-                        formatButtonVisible: false,
-                        titleTextStyle: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                        leftChevronIcon:
-                            Icon(Icons.chevron_left, color: Colors.grey.shade400),
-                        rightChevronIcon:
-                            Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                      ),
-                      calendarBuilders: CalendarBuilders(
-                        markerBuilder: (context, day, events) {
-                          if (events.isEmpty) return const SizedBox.shrink();
-
-                          final scheduleEvents = events.cast<WorkoutSchedule>();
-                          final hasSmolovJr = scheduleEvents.any((s) => s.menuTitle == 'Smolov Jr.');
-                          final has10x10 = scheduleEvents.any((s) => s.menuTitle == '10x10');
-                          final has531 = scheduleEvents.any((s) => s.menuTitle == '5/3/1');
-                          final hasOther = scheduleEvents.any((s) =>
-                              s.menuTitle != 'Smolov Jr.' &&
-                              s.menuTitle != '10x10' &&
-                              s.menuTitle != '5/3/1' &&
-                              s.menuTitle.isNotEmpty);
-
-                          List<Widget> markers = [];
-                          if (hasSmolovJr) {
-                            markers.add(Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.0),
-                              width: 7,
-                              height: 7,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFFFFB74D), // Light Orange
-                              ),
-                            ));
-                          }
-                          if (has10x10) {
-                            markers.add(Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.0),
-                              width: 7,
-                              height: 7,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF81C784), // Light Green
-                              ),
-                            ));
-                          }
-                          if (has531) {
-                            markers.add(Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.0),
-                              width: 7,
-                              height: 7,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFFBA68C8), // Light Purple
-                              ),
-                            ));
-                          }
-                          if (hasOther) {
-                            markers.add(Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.0),
-                              width: 7,
-                              height: 7,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.grey, // Grey for others
-                              ),
-                            ));
-                          }
-
-                          if (markers.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return Positioned(
-                            bottom: 1,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: markers,
+                      headerTitleBuilder: (context, date) {
+                        return Center(
+                          child: Text(
+                            DateFormat('MMMM yyyy').format(date).toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1.0,
                             ),
-                          );
-                        },
-                        headerTitleBuilder: (context, date) {
-                          return Center(
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              onEnter: (_) =>
-                                  setState(() => _isHeaderHovered = true),
-                              onExit: (_) =>
-                                  setState(() => _isHeaderHovered = false),
-                              child: GestureDetector(
-                                onTap: () => _onHeaderTapped(context, date),
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text(
-                                    DateFormat('yyyy年M月').format(date),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: _isHeaderHovered
-                                          ? const Color(0xFF81C784) // Light Green hover
-                                          : const Color(0xFF424242), // Dark Grey
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        prioritizedBuilder: (context, day, focusedDay) {
-                          final isHovered = isSameDay(_hoveredDay, day);
-                          final isSelected = isSameDay(_selectedDay, day);
-                          final isToday = isSameDay(day, DateTime.now());
-
-                          BoxDecoration decoration;
-                          if (isSelected) {
-                            decoration = BoxDecoration(
-                              color: const Color(0xFF81C784), // Light Green
-                              borderRadius: BorderRadius.circular(8.0),
-                            );
-                          } else if (isToday) {
-                            decoration = BoxDecoration(
-                              color: const Color(0xFF81C784).withValues(alpha: 0.2), // Faint Green
-                              borderRadius: BorderRadius.circular(8.0),
-                            );
-                          } else if (isHovered) {
-                            decoration = BoxDecoration(
-                              color: Colors.grey.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8.0),
-                            );
-                          } else {
-                            decoration =
-                                const BoxDecoration(shape: BoxShape.rectangle);
-                          }
-
-                          return MouseRegion(
-                            onEnter: (_) => setState(() => _hoveredDay = day),
-                            onExit: (_) => setState(() => _hoveredDay = null),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              margin: const EdgeInsets.all(4.0),
-                              decoration: decoration,
-                              child: Center(
-                                child: Text(
-                                  '${day.day}',
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xFF424242),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      calendarStyle: const CalendarStyle(
-                        // Default marker style is fine
-                      ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
-              ),
-                const SizedBox(height: 32),
-                // メニュー管理セクション
-                _buildMenuManagementSection(schedules),
-                const SizedBox(height: 32),
-                // 全てのスケジュールを削除するボタン (登録中のプログラムがある場合のみ表示)
-                if (activeSchedules.isNotEmpty)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _confirmDeleteAllSchedules,
-                      icon: const Icon(Icons.delete_forever, color: Colors.white),
-                      label: const Text('全てのスケジュールを削除'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade700,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+
+                const SizedBox(height: 24),
+
+                // Main Content
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _TodaysWorkoutSection(
+                        upcomingSchedules: upcomingSchedules,
+                        onStart: _navigateToWorkout,
+                        onAddSchedule: _navigateToAddSchedule,
+                        onRefresh: _refreshData,
                       ),
-                    ),
+                      const SizedBox(height: 32),
+                      
+                      _buildMenuManagementSection(schedules),
+                      const SizedBox(height: 32),
+                      
+                      _UpcomingWorkouts(
+                        schedules: upcomingSchedules,
+                        onComplete: _completeSchedule,
+                        onEdit: (id) {},
+                        onDelete: _confirmDeleteSchedule,
+                      ),
+                      const SizedBox(height: 40), // Bottom padding
+                    ],
                   ),
-                if (activeSchedules.isNotEmpty) const SizedBox(height: 24),
-                _UpcomingWorkouts(
-                  schedules: upcomingSchedules,
-                  onComplete: _completeSchedule,
-                  onEdit: (id) {}, // Placeholder
-                  onDelete: _deleteSchedule,
                 ),
               ],
             ),
@@ -634,50 +537,115 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Text(
-            '登録中のプログラム',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+        // 見出し部分のアップグレード
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _isProgramsExpanded = !_isProgramsExpanded;
+            });
+          },
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.assignment_rounded, color: Color(0xFF00ACC1), size: 20),
+                const SizedBox(width: 12),
+                const Text(
+                  '登録中のプログラム',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+
+                // セクション展開時のみ表示される「全てクリア」ボタン
+                if (_isProgramsExpanded) ...[
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: _confirmDeleteAllSchedules,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.1)),
+                      ),
+                      child: const Text(
+                        '全てクリア',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00ACC1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${groupedSchedules.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Icon(
+                  _isProgramsExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  size: 24,
+                  color: const Color(0xFF00ACC1),
+                ),
+              ],
             ),
           ),
         ),
-        ...groupedSchedules.entries.map((entry) {
-          final firstScheduleInGroup = entry.value.first;
-          final menuTitle = firstScheduleInGroup.menuTitle;
-          final sessionTitle = firstScheduleInGroup.sessionTitle;
-          final count = entry.value.length; // グループ内のスケジュール数
+        
+        if (_isProgramsExpanded) ...[
+          const SizedBox(height: 16),
+          ...groupedSchedules.entries.map((entry) {
+            final firstScheduleInGroup = entry.value.first;
+            final menuTitle = firstScheduleInGroup.menuTitle;
+            final sessionTitle = firstScheduleInGroup.sessionTitle;
+            final count = entry.value.length; // グループ内のスケジュール数
 
-          Color color;
-          IconData icon;
-          switch (menuTitle) {
-            case 'Smolov Jr.':
-              color = const Color(0xFFFFB74D); // Light Orange
-              icon = Icons.trending_up;
-              break;
-            case '10x10':
-              color = const Color(0xFF81C784); // Light Green
-              icon = Icons.grid_view;
-              break;
-            case '5/3/1':
-              color = const Color(0xFFBA68C8); // Light Purple
-              icon = Icons.looks_3;
-              break;
-            default:
-              color = Colors.grey;
-              icon = Icons.fitness_center;
-              break;
-          }
-          return _buildMenuCard(
-            schedule: firstScheduleInGroup, // グループの代表となるスケジュールを渡す
-            icon: icon,
-            color: color,
-            onDelete: () => _confirmDeleteMenu(menuTitle, sessionTitle, count),
-          );
-        }),
+            Color color = const Color(0xFF00ACC1);
+            IconData icon;
+            switch (menuTitle) {
+              case 'Smolov Jr.':
+                icon = Icons.trending_up;
+                break;
+              case '10x10':
+                icon = Icons.grid_view;
+                break;
+              case '5/3/1':
+                icon = Icons.looks_3;
+                break;
+              default:
+                icon = Icons.fitness_center;
+                break;
+            }
+            return _buildMenuCard(
+              schedule: firstScheduleInGroup,
+              icon: icon,
+              color: color,
+              onDelete: () => _confirmDeleteMenu(menuTitle, sessionTitle, count),
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
       ],
     );
   }
@@ -701,157 +669,146 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade300),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // アイコン
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(icon, color: color, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  // メニュー名
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (!isCustom && schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              schedule.workoutDetails!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // 削除ボタン
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: onDelete,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.delete_outline,
-                              size: 18,
-                              color: Colors.red.shade700,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '削除',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.red.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (isCustom && schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: schedule.workoutDetails!.split('\n').map((line) {
-                      if (line.isEmpty) return const SizedBox.shrink();
-                      final parts = line.split(': ');
-                      final exercise = parts[0];
-                      final setsStr = parts.length > 1 ? parts[1] : '';
-                      final sets = setsStr.split(', ');
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              exercise,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF424242),
-                              ),
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // アイコン
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            const SizedBox(height: 8),
-                            ...sets.map((setInfo) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 5,
-                                    height: 5,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.black12,
+                            child: Icon(icon, color: color, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          // メニュー名
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayName,
+                                  style: const TextStyle(
+                                    fontSize: 17, // Increased
+                                    fontWeight: FontWeight.w900, // Bolder
+                                    color: Color(0xFF212121), // Darker
+                                  ),
+                                ),
+                                if (!isCustom && schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      schedule.workoutDetails!,
+                                      style: const TextStyle(
+                                        fontSize: 14, // Increased
+                                        color: Color(0xFF424242), // Darker
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    setInfo,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade700,
-                                      fontWeight: FontWeight.w500,
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (isCustom && schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: schedule.workoutDetails!.split('\n').map((line) {
+                              if (line.isEmpty) return const SizedBox.shrink();
+                              final parts = line.split(': ');
+                              final exercise = parts[0];
+                              final setsStr = parts.length > 1 ? parts[1] : '';
+                              final sets = setsStr.split(', ');
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      exercise,
+                                      style: const TextStyle(
+                                        fontSize: 14, // Increased
+                                        fontWeight: FontWeight.w900, // Bolder
+                                        color: Color(0xFF212121), // Darker
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            )).toList(),
-                          ],
+                                    const SizedBox(height: 8),
+                                    ...sets.map((setInfo) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 5,
+                                            height: 5,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.black26, // Darker dot
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            setInfo,
+                                            style: const TextStyle(
+                                              fontSize: 13, // Increased
+                                              color: Color(0xFF424242), // Darker
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )).toList(),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
                         ),
-                      );
-                    }).toList(),
+                    ],
                   ),
                 ),
+              ),
+              // 削除ボタン (統一デザイン)
+              Material(
+                color: Colors.red.shade50,
+                child: InkWell(
+                  onTap: onDelete,
+                  child: Container(
+                    width: 56,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -867,29 +824,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Column(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
-            const SizedBox(width: 8),
-            const Text('確認'),
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+            SizedBox(height: 16),
+            Text(
+              'スケジュールの削除',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+            ),
           ],
         ),
         content: Text(
-          '$displayName の未完了スケジュール $count 件を削除しますか？\n\nこの操作は取り消せません。',
+          '「$displayName」のスケジュール\n$count件を削除しますか？',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161)),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'キャンセル',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('キャンセル', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('削除', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -903,7 +882,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('$displayName のスケジュールを削除しました'),
-              backgroundColor: Colors.green,
+              backgroundColor: const Color(0xFF00ACC1),
             ),
           );
         }
@@ -920,55 +899,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _onHeaderTapped(BuildContext context, DateTime focusedDay) {
-    showDatePicker(
-      context: context,
-      initialDate: focusedDay,
-      firstDate: DateTime.utc(2020, 1, 1),
-      lastDate: DateTime.utc(2030, 12, 31),
-    ).then((pickedDate) {
-      if (pickedDate != null) {
-        setState(() {
-          _focusedDay = pickedDate;
-          _selectedDay = pickedDate; // Also update the selected day
-        });
-        // Navigate to add schedule screen with selected date
-        Navigator.pushNamed(
-          context,
-          '/add_schedule',
-          arguments: {'selectedDate': pickedDate},
-        ).then((_) => _refreshData());
-      }
-    });
-  }
-
   Future<void> _confirmDeleteAllSchedules() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Column(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
-            const SizedBox(width: 8),
-            const Text('全削除の確認'),
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+            SizedBox(height: 16),
+            Text(
+              '全ての予定を削除',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+            ),
           ],
         ),
         content: const Text(
-          '本当に全ての登録済みスケジュールを削除しますか？\n\nこの操作は取り消せません。',
+          '登録されている全てのスケジュールを\n削除してもよろしいですか？',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161)),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'キャンセル',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('全て削除'),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('キャンセル', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('全て削除', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -982,7 +961,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('全てのスケジュールを削除しました'),
-              backgroundColor: Colors.green,
+              backgroundColor: Color(0xFF00ACC1),
             ),
           );
         }
@@ -1035,18 +1014,51 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('プログラムの削除'),
-        content: Text('カスタムプログラム「${program.name}」を削除しますか？'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Column(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+            SizedBox(height: 16),
+            Text(
+              'プログラムの削除',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+            ),
+          ],
+        ),
+        content: Text(
+          '「${program.name}」を削除しますか？',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161)),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('キャンセル', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('キャンセル', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('削除', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1080,22 +1092,138 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
     {
       'name': 'Smolov Jr.',
       'description': '3週間の高頻度プログラム',
-      'color': const Color(0xFFFFB74D), // Light Orange
+      'color': const Color(0xFF00ACC1), // Cyan
       'icon': Icons.trending_up,
     },
     {
       'name': '10x10',
       'description': 'ジャーマンボリュームトレーニング',
-      'color': const Color(0xFF81C784), // Light Green
+      'color': const Color(0xFF00ACC1), // Cyan
       'icon': Icons.grid_view,
     },
     {
       'name': '5/3/1',
       'description': '週3回の頻度で行う筋力向上プログラム',
-      'color': const Color(0xFFBA68C8), // Light Purple
+      'color': const Color(0xFF00ACC1), // Cyan
       'icon': Icons.looks_3,
     },
   ];
+
+  // 有名プログラムデータ
+  static const List<Map<String, dynamic>> _famousPowerliftingMenus = [
+    {
+      'name': 'StrongLifts 5x5',
+      'description': '初心者向け: 5回5セットの基礎プログラム',
+      'color': const Color(0xFF00ACC1),
+      'icon': Icons.fitness_center,
+    },
+    {
+      'name': 'Texas Method',
+      'description': '中級者向け: 週3回の強度変化プログラム',
+      'color': const Color(0xFF00ACC1),
+      'icon': Icons.calendar_view_week,
+    },
+    {
+      'name': 'Candito 6-Week',
+      'description': '中・上級者向け: 6週間のピーキング',
+      'color': const Color(0xFF00ACC1),
+      'icon': Icons.timer,
+    },
+    {
+      'name': 'Sheiko',
+      'description': '上級者向け: 高ボリューム・高頻度',
+      'color': const Color(0xFF00ACC1),
+      'icon': Icons.repeat,
+    },
+    {
+      'name': 'Westside Conjugate',
+      'description': '上級者向け: 最大努力と動的努力の組み合わせ',
+      'color': const Color(0xFF00ACC1),
+      'icon': Icons.bolt,
+    },
+  ];
+
+  Widget _buildMenuCard(
+    String title,
+    String description,
+    Color color,
+    IconData icon, {
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(icon, color: color, size: 28),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF212121),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF424242),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.grey.shade400,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1105,153 +1233,69 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0), // Increased padding
       children: [
-        // カテゴリーヘッダー
+        // カテゴリーヘッダー (専用プログラム)
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 20, top: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 6,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFBA68C8), // Light Purple
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                '筋力強化',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                  color: Color(0xFF424242),
-                ),
-              ),
-            ],
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            '専用プログラム',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Colors.grey.shade800,
+            ),
           ),
         ),
-        ..._workoutMenus.asMap().entries.map((entry) {
-          final index = entry.key;
-          final menu = entry.value;
-          final menuName = menu['name'] as String;
-          final description = menu['description'] as String;
-          // カラーパレットに合わせて色を調整
-          Color color;
-          switch (menuName) {
-            case 'Smolov Jr.':
-              color = const Color(0xFFFFB74D); // Light Orange
-              break;
-            case '10x10':
-              color = const Color(0xFF81C784); // Light Green
-              break;
-            case '5/3/1':
-              color = const Color(0xFFBA68C8); // Light Purple
-              break;
-            default:
-              color = Colors.grey;
-          }
-          final icon = menu['icon'] as IconData;
-
-          return TweenAnimationBuilder<double>(
-            duration: Duration(milliseconds: 200 + (index * 50)),
-            curve: Curves.easeOutQuad,
-            tween: Tween(begin: 0.0, end: 1.0),
-            builder: (context, value, child) {
-              return Opacity(
-                opacity: value,
-                child: Transform.translate(
-                  offset: Offset(0, 20 * (1 - value)),
-                  child: child,
-                ),
+        // 専用プログラムリスト
+        ..._workoutMenus.map((menu) {
+          return _buildMenuCard(
+            menu['name'],
+            menu['description'],
+            menu['color'],
+            menu['icon'],
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                '/workout_detail',
+                arguments: {
+                  'workoutName': menu['name'],
+                  'startDate': DateTime.now(),
+                },
               );
             },
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/workout_detail',
-                    arguments: {
-                      'workoutName': menuName,
-                      'startDate': DateTime.now(),
-                    },
-                  );
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.15), // Subtle colored shadow
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Icon(
-                            icon,
-                            color: color,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                menuName,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900, // Extra bold
-                                  color: Colors.black87, // Sharper black
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                description,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w600, // Medium weight
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.grey.shade400,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+          );
+        }).toList(),
+
+        const SizedBox(height: 32),
+
+        // カテゴリーヘッダー (有名プログラム)
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            '有名プログラム',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Colors.grey.shade800,
             ),
+          ),
+        ),
+        // 有名プログラムリスト
+        ..._famousPowerliftingMenus.map((menu) {
+          return _buildMenuCard(
+            menu['name'],
+            menu['description'],
+            menu['color'],
+            menu['icon'],
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                '/workout_detail',
+                arguments: {
+                  'workoutName': menu['name'],
+                  'startDate': DateTime.now(),
+                },
+              );
+            },
           );
         }).toList(),
 
@@ -1266,7 +1310,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                 width: 6,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF81C784), // Light Green
+                  color: const Color(0xFF00ACC1), // Cyan
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1323,76 +1367,86 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFF81C784).withValues(alpha: 0.2), width: 1.5),
+                    border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF81C784).withValues(alpha: 0.12),
+                        color: const Color(0xFF00ACC1).withValues(alpha: 0.12),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF81C784).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: const Icon(
-                            Icons.fitness_center,
-                            color: Color(0xFF81C784),
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                program.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              if (program.details != null && program.details!.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  program.details!,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w600,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20.0),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: const Icon(
+                                      Icons.fitness_center,
+                                      color: Color(0xFF00ACC1),
+                                      size: 28,
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ],
+                                  const SizedBox(width: 18),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          program.name,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        if (program.details != null && program.details!.isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            program.details!,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey.shade600,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
+                          // 削除ボタン (統一デザイン)
+                          Material(
                             color: Colors.red.shade50,
-                            shape: BoxShape.circle,
+                            child: InkWell(
+                              onTap: () => _confirmDeleteCustomProgram(program),
+                              child: Container(
+                                width: 64,
+                                alignment: Alignment.center,
+                                child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 24),
+                              ),
+                            ),
                           ),
-                          child: IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                            color: Colors.red.shade300,
-                            onPressed: () => _confirmDeleteCustomProgram(program),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1436,12 +1490,12 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF81C784).withValues(alpha: 0.1),
+                        color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
                         Icons.add_rounded,
-                        color: Color(0xFF81C784),
+                        color: Color(0xFF00ACC1),
                         size: 24,
                       ),
                     ),
@@ -1451,7 +1505,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF81C784),
+                        color: Color(0xFF00ACC1),
                       ),
                     ),
                   ],
@@ -1507,6 +1561,9 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   // 編集用の種目リスト
   List<Map<String, dynamic>> _editableExercises = [];
 
+  // 有名プログラム用の複数種目入力管理 (動的リスト)
+  List<Map<String, dynamic>> _programExercises = [];
+
   @override
   void initState() {
     super.initState();
@@ -1516,6 +1573,36 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     if (widget.isCustom && widget.details != null) {
       _parseDetailsToEditable(widget.details!);
     }
+  }
+
+  void _addProgramExercise() {
+    final weight = double.tryParse(_currentWeightController.text);
+    final name = _exerciseKindController.text;
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('種目を選択してください')));
+      return;
+    }
+    if (weight == null || weight <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('有効な重量を入力してください')));
+      return;
+    }
+
+    setState(() {
+      _programExercises.add({
+        'name': name,
+        'weight': weight,
+      });
+      // 入力クリア
+      _currentWeightController.clear();
+      // _exerciseKindController.clear(); // Keep exercise for convenience? Or clear? Let's keep it.
+    });
+  }
+
+  void _removeProgramExercise(int index) {
+    setState(() {
+      _programExercises.removeAt(index);
+    });
   }
 
   void _parseDetailsToEditable(String details) {
@@ -1678,7 +1765,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('スケジュールに登録しました'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00ACC1),
           ),
         );
         Navigator.pop(context, true);
@@ -1754,7 +1841,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('プログラムをカレンダーに登録しました'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00ACC1),
           ),
         );
       }
@@ -1776,6 +1863,195 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           _isRegistering = false;
         });
       }
+    }
+  }
+
+  // StrongLifts 5x5 プログラムを登録
+  Future<void> _registerStrongLiftsProgram() async {
+    if (_programExercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('種目を少なくとも1つ追加してください')));
+      return;
+    }
+    setState(() => _isRegistering = true);
+
+    try {
+      final List<WorkoutSchedule> schedules = [];
+      // スタート重量は1RMの75%とする
+      final weightsMap = { for (var ex in _programExercises) ex['name'] as String : (ex['weight'] as double) * 0.75 };
+
+      final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
+      final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
+      final rows = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('row')).toList();
+      final ohps = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('press') && !e['name'].toString().toLowerCase().contains('bench')).toList();
+      final deadlifts = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('deadlift')).toList();
+      final others = _programExercises.where((e) => 
+        !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') &&
+        !e['name'].toString().toLowerCase().contains('row') && !e['name'].toString().toLowerCase().contains('press') &&
+        !e['name'].toString().toLowerCase().contains('deadlift')
+      ).toList();
+
+      for (int week = 0; week < 12; week++) {
+        for (int dayIndex = 0; dayIndex < 3; dayIndex++) {
+          final scheduledDate = _startDate.add(Duration(days: (week * 7) + (dayIndex * 2)));
+          final workoutIndex = (week * 3) + dayIndex;
+          final isWorkoutA = workoutIndex % 2 == 0;
+          StringBuffer details = StringBuffer();
+
+          for (var ex in squats) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + workoutIndex * 2.5).toStringAsFixed(1)}kg\n');
+          if (isWorkoutA) {
+            final aCount = (workoutIndex + 1) ~/ 2;
+            for (var ex in benches) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
+            for (var ex in rows) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
+          } else {
+            final bCount = workoutIndex ~/ 2;
+            for (var ex in ohps) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + bCount * 2.5).toStringAsFixed(1)}kg\n');
+            for (var ex in deadlifts) details.write('${ex['name']}: 1x5 @ ${(weightsMap[ex['name']]! + bCount * 5.0).toStringAsFixed(1)}kg\n');
+          }
+          for (var ex in others) details.write('${ex['name']}: 3x10 @ ${((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
+
+          if (details.isNotEmpty) {
+            schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: 'StrongLifts 5x5', menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}', workoutDetails: details.toString().trim(), sessionTitle: isWorkoutA ? 'Workout A' : 'Workout B'));
+          }
+        }
+      }
+      await _apiService.addSchedules(schedules);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('StrongLifts 5x5を登録しました'), backgroundColor: Color(0xFF00ACC1)));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      debugPrint('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isRegistering = false);
+    }
+  }
+
+  // Texas Method プログラムを登録
+  Future<void> _registerTexasMethodProgram() async {
+    if (_programExercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('種目を少なくとも1つ追加してください')));
+      return;
+    }
+    setState(() => _isRegistering = true);
+
+    try {
+      final List<WorkoutSchedule> schedules = [];
+      final fiveRMMap = { for (var ex in _programExercises) ex['name'] as String : (ex['weight'] as double) * 0.85 };
+
+      final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
+      final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
+      final deadlifts = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('deadlift')).toList();
+      final presses = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('press') && !e['name'].toString().toLowerCase().contains('bench')).toList();
+      final others = _programExercises.where((e) => !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') && !e['name'].toString().toLowerCase().contains('deadlift') && !e['name'].toString().toLowerCase().contains('press')).toList();
+
+      for (int week = 0; week < 8; week++) {
+        // Day 1: Volume
+        StringBuffer vol = StringBuffer();
+        for (var ex in squats) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
+        for (var ex in benches) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
+        for (var ex in presses) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
+        if (vol.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7))), isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Volume', workoutDetails: vol.toString().trim(), sessionTitle: 'Volume Day'));
+
+        // Day 2: Recovery
+        StringBuffer rec = StringBuffer();
+        for (var ex in squats) rec.write('${ex['name']}: 2x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
+        for (var ex in benches) rec.write('${ex['name']}: 3x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
+        if (rec.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + 2)), isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Recovery', workoutDetails: rec.toString().trim(), sessionTitle: 'Recovery Day'));
+
+        // Day 3: Intensity
+        StringBuffer intens = StringBuffer();
+        for (var ex in squats) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
+        for (var ex in benches) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
+        for (var ex in presses) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
+        for (var ex in deadlifts) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 5.0).toStringAsFixed(1)}kg\n');
+        if (intens.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + 4)), isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Intensity', workoutDetails: intens.toString().trim(), sessionTitle: 'Intensity Day'));
+      }
+      await _apiService.addSchedules(schedules);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Texas Methodを登録しました'), backgroundColor: Color(0xFF00ACC1)));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      debugPrint('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isRegistering = false);
+    }
+  }
+
+  // 固有プログラム登録 (Candito, Sheiko, Westside)
+  Future<void> _registerTemplateProgram(String programName) async {
+    if (_programExercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('種目を少なくとも1つ追加してください')));
+      return;
+    }
+    setState(() => _isRegistering = true);
+
+    try {
+      final List<WorkoutSchedule> schedules = [];
+      final weightsMap = { for (var ex in _programExercises) ex['name'] as String : ex['weight'] as double };
+      
+      final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
+      final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
+      final deadlifts = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('deadlift')).toList();
+      final others = _programExercises.where((e) => !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') && !e['name'].toString().toLowerCase().contains('deadlift')).toList();
+
+      if (programName == 'Westside Conjugate') {
+        final dayOffsets = [0, 1, 3, 4];
+        final sessionTitles = ['Max Effort Lower', 'Max Effort Upper', 'Dynamic Effort Lower', 'Dynamic Effort Upper'];
+        for (int week = 0; week < 4; week++) {
+          for (int i = 0; i < 4; i++) {
+            StringBuffer details = StringBuffer();
+            if (i == 0) {
+              for (var ex in squats) details.write('${ex['name']} Variation: 1-3 reps @ MAX\n');
+              for (var ex in deadlifts) details.write('${ex['name']} Variation: 1-3 reps @ MAX\n');
+            } else if (i == 1) {
+              for (var ex in benches) details.write('${ex['name']} Variation: 1-3 reps @ MAX\n');
+            } else if (i == 2) {
+              for (var ex in squats) details.write('${ex['name']}: 10x2 @ ${(weightsMap[ex['name']]! * 0.55).toStringAsFixed(1)}kg\n');
+              for (var ex in deadlifts) details.write('${ex['name']}: 10x1 @ ${(weightsMap[ex['name']]! * 0.65).toStringAsFixed(1)}kg\n');
+            } else if (i == 3) {
+              for (var ex in benches) details.write('${ex['name']}: 9x3 @ ${(weightsMap[ex['name']]! * 0.55).toStringAsFixed(1)}kg\n');
+            }
+            for (var ex in others) details.write('${ex['name']}: 3x10-15 @ ${(weightsMap[ex['name']]! * 0.5).toStringAsFixed(1)}kg\n');
+            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + dayOffsets[i])), isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1}', workoutDetails: details.toString().trim(), sessionTitle: sessionTitles[i]));
+          }
+        }
+      } else if (programName == 'Candito 6-Week') {
+        final weekFreqs = [5, 5, 4, 4, 3, 1]; 
+        for (int week = 0; week < 6; week++) {
+          int freq = weekFreqs[week];
+          for (int day = 0; day < freq; day++) {
+            StringBuffer details = StringBuffer();
+            double intensity = (week < 2) ? 0.8 : ((week < 4) ? 0.9 : 0.95);
+            String reps = (week < 2) ? '4x6' : ((week < 4) ? '3x3' : '1x1-4');
+            for (var ex in squats) details.write('${ex['name']}: $reps @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
+            for (var ex in benches) details.write('${ex['name']}: $reps @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
+            for (var ex in deadlifts) if (day % 2 == 1) details.write('${ex['name']}: 2x6 @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
+            for (var ex in others) details.write('${ex['name']}: 3x10 @ ${(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
+            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + (day * 2))), isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Day ${day + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'Cycle Day'));
+          }
+        }
+      } else if (programName == 'Sheiko') {
+        for (int week = 0; week < 4; week++) {
+          for (int i = 0; i < 3; i++) {
+            StringBuffer details = StringBuffer();
+            for (var ex in squats) details.write('${ex['name']}: 5x3 @ ${(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
+            for (var ex in benches) details.write('${ex['name']}: 5x3 @ ${(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
+            for (var ex in deadlifts) if (i == 1) details.write('${ex['name']}: 4x2 @ ${(weightsMap[ex['name']]! * 0.85).toStringAsFixed(1)}kg\n');
+            for (var ex in others) details.write('${ex['name']}: 4x8 @ ${(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
+            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + (i * 2))), isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Session ${i + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'High Volume Session'));
+          }
+        }
+      }
+      await _apiService.addSchedules(schedules);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$programNameを登録しました'), backgroundColor: const Color(0xFF00ACC1)));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      debugPrint('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isRegistering = false);
     }
   }
 
@@ -1807,7 +2083,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           final scheduledDate = startDate.add(Duration(days: dayOffset));
 
           final workoutDetails =
-              '${dayData['sets']}x${dayData['reps']} @ ${(dayData['weight'] as double).toStringAsFixed(1)}kg';
+              '${dayData['reps']}x${dayData['sets']} @ ${(dayData['weight'] as double).toStringAsFixed(1)}kg';
 
           schedules.add(WorkoutSchedule(
             id: 0, // サーバー側で生成される
@@ -1840,7 +2116,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('プログラムをカレンダーに登録しました'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00ACC1),
           ),
         );
       }
@@ -1912,7 +2188,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           final scheduledDate = weekBase.add(Duration(days: dayDiff));
 
           final workoutDetails =
-              '${dayData['sets']}x${dayData['reps']} @ ${(dayData['weight'] as double).toStringAsFixed(1)}kg';
+              '${dayData['reps']}x${dayData['sets']} @ ${(dayData['weight'] as double).toStringAsFixed(1)}kg';
 
           schedules.add(WorkoutSchedule(
             id: 0,
@@ -1936,7 +2212,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('5/3/1 プログラムをカレンダーに登録しました'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00ACC1),
           ),
         );
       }
@@ -2021,6 +2297,154 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         _startDate = DateUtils.dateOnly(picked);
       });
     }
+  }
+
+  // --- UI Helpers ---
+
+  Widget _buildProgramDescriptionCard(String title, String description) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFF00ACC1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStartDateCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_today, color: Colors.grey.shade600),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '開始日',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('yyyy年MM月dd日').format(_startDate),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: _selectStartDate,
+              child: const Text('変更'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeightInputCard(String label, TextEditingController controller) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                hintText: '例: 100',
+                hintStyle: TextStyle(color: Colors.grey.shade400),
+                suffixText: 'kg',
+                suffixStyle: TextStyle(color: Colors.grey.shade600),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF00ACC1)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                fillColor: Colors.grey[100],
+                filled: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterButton(VoidCallback onPressed) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: _isRegistering ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF424242),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: _isRegistering
+            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+            : const Text('スケジュールに登録', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      ),
+    );
   }
 
   void _calculateSmolovJr() {
@@ -2186,8 +2610,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               const SizedBox(height: 12),
               
               if (_editableExercises.isNotEmpty)
-                ...List.generate(_editableExercises.length, (index) => _buildEditableExerciseCard(index, const Color(0xFF81C784)))
-              else
+                                    ...List.generate(_editableExercises.length, (index) => _buildEditableExerciseCard(index, const Color(0xFF00ACC1)))              else
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
@@ -2223,6 +2646,475 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       );
     }
 
+    if (widget.workoutName == 'StrongLifts 5x5') {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.workoutName)),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildProgramDescriptionCard(widget.workoutName, '初心者向け: 5回5セットの基礎プログラム'),
+              const SizedBox(height: 12),
+              _buildStartDateCard(),
+              const SizedBox(height: 12),
+              
+              // 種目・重量入力エリア (入力用)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('新しい種目を追加', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF212121))),
+                      const SizedBox(height: 16),
+                      _buildExerciseNameField(const Color(0xFF00ACC1)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _currentWeightController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+                        decoration: InputDecoration(
+                          labelText: '1RM重量 (最大挙上重量) を入力',
+                          labelStyle: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.normal, fontSize: 14),
+                          hintText: '100.0',
+                          suffixText: 'kg',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          fillColor: Colors.grey[100],
+                          filled: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _addProgramExercise,
+                          icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 20),
+                          label: const Text('リストに追加', style: TextStyle(fontWeight: FontWeight.w900)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00ACC1),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 追加された種目リスト (ここがどんどん増えていく)
+              if (_programExercises.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 12),
+                  child: Text('以下の記録からプログラムを作成', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF424242))),
+                ),
+                ..._programExercises.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final ex = entry.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(width: 6, color: const Color(0xFF00ACC1)),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ex['name'],
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.fitness_center, color: Color(0xFF424242), size: 18),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          '1RM: ${ex['weight']}kg',
+                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF00ACC1)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Material(
+                              color: Colors.red.shade50,
+                              child: InkWell(
+                                onTap: () => _removeProgramExercise(index),
+                                child: Container(
+                                  width: 56,
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+                const SizedBox(height: 24),
+              ],
+
+              _buildRegisterButton(_registerStrongLiftsProgram),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (widget.workoutName == 'Texas Method') {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.workoutName)),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildProgramDescriptionCard(widget.workoutName, '中級者向け: 週3回の強度変化プログラム'),
+              const SizedBox(height: 12),
+              _buildStartDateCard(),
+              const SizedBox(height: 12),
+              
+              // 種目・重量入力エリア (入力用)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('新しい種目を追加', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF212121))),
+                      const SizedBox(height: 16),
+                      _buildExerciseNameField(const Color(0xFF00ACC1)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _currentWeightController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+                        decoration: InputDecoration(
+                          labelText: '1RM重量 (最大挙上重量) を入力',
+                          labelStyle: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.normal, fontSize: 14),
+                          hintText: '100.0',
+                          suffixText: 'kg',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          fillColor: Colors.grey[100],
+                          filled: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _addProgramExercise,
+                          icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 20),
+                          label: const Text('種目を追加', style: TextStyle(fontWeight: FontWeight.w900)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00ACC1),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 追加された種目リスト
+              if (_programExercises.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 12),
+                  child: Text('以下の記録からプログラムを作成', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF424242))),
+                ),
+                ..._programExercises.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final ex = entry.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(width: 6, color: const Color(0xFF00ACC1)),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ex['name'],
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.fitness_center, color: Color(0xFF424242), size: 18),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          '1RM: ${ex['weight']}kg',
+                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF00ACC1)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Material(
+                              color: Colors.red.shade50,
+                              child: InkWell(
+                                onTap: () => _removeProgramExercise(index),
+                                child: Container(
+                                  width: 56,
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+                const SizedBox(height: 24),
+              ],
+
+              _buildRegisterButton(_registerTexasMethodProgram),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Generic template for other famous programs
+    if (['Candito 6-Week', 'Sheiko', 'Westside Conjugate'].contains(widget.workoutName)) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.workoutName)),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildProgramDescriptionCard(widget.workoutName, '上級者向けプログラムテンプレート'),
+              const SizedBox(height: 12),
+              _buildStartDateCard(),
+              const SizedBox(height: 12),
+              
+              // 種目・重量入力エリア (入力用)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('新しい種目を追加', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF212121))),
+                      const SizedBox(height: 16),
+                      _buildExerciseNameField(const Color(0xFF00ACC1)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _currentWeightController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+                        decoration: InputDecoration(
+                          labelText: '1RM重量 (最大挙上重量) を入力',
+                          labelStyle: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.normal, fontSize: 14),
+                          hintText: '100.0',
+                          suffixText: 'kg',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          fillColor: Colors.grey[100],
+                          filled: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _addProgramExercise,
+                          icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 20),
+                          label: const Text('種目を追加', style: TextStyle(fontWeight: FontWeight.w900)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00ACC1),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 追加された種目リスト
+              if (_programExercises.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 12),
+                  child: Text('以下の記録からプログラムを作成', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF424242))),
+                ),
+                ..._programExercises.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final ex = entry.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(width: 6, color: const Color(0xFF00ACC1)),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ex['name'],
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.fitness_center, color: Color(0xFF424242), size: 18),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          '1RM: ${ex['weight']}kg',
+                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF00ACC1)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Material(
+                              color: Colors.red.shade50,
+                              child: InkWell(
+                                onTap: () => _removeProgramExercise(index),
+                                child: Container(
+                                  width: 56,
+                                  alignment: Alignment.center,
+                                  child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+                const SizedBox(height: 24),
+              ],
+
+              _buildRegisterButton(() => _registerTemplateProgram(widget.workoutName)),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (widget.workoutName == '5/3/1') {
       // 5/3/1-specific UI
       return Scaffold(
@@ -2247,7 +3139,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                         width: 4,
                         height: 60,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFBA68C8),
+                          color: const Color(0xFF00ACC1),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -2328,7 +3220,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
                       ),
                       const SizedBox(height: 12),
-                      _buildExerciseNameField(const Color(0xFFBA68C8)),
+                      _buildExerciseNameField(const Color(0xFF00ACC1)),
                     ],
                   ),
                 ),
@@ -2400,17 +3292,18 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                   borderRadius: BorderRadius.circular(10),
                                   borderSide: BorderSide(color: Colors.grey.shade300),
                                 ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: const Color(0xFFBA68C8)),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              ),
-                            ),
+                                                              enabledBorder: OutlineInputBorder(
+                                                                borderRadius: BorderRadius.circular(10),
+                                                                borderSide: BorderSide.none,
+                                                              ),
+                                                              focusedBorder: OutlineInputBorder(
+                                                                borderRadius: BorderRadius.circular(10),
+                                                                borderSide: const BorderSide(color: const Color(0xFF00ACC1)),
+                                                              ),
+                                                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                                              fillColor: Colors.grey[100],
+                                                              filled: true,
+                                                            ),                            ),
                           ),
                           const SizedBox(width: 12),
                           ElevatedButton(
@@ -2505,7 +3398,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                         width: 4,
                         height: 60,
                         decoration: BoxDecoration(
-                          color: Colors.blue, // 10x10 theme color
+                          color: const Color(0xFF00ACC1), // 10x10 theme color
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -2586,7 +3479,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
                       ),
                       const SizedBox(height: 12),
-                      _buildExerciseNameField(Colors.blue),
+                      _buildExerciseNameField(const Color(0xFF00ACC1)),
                     ],
                   ),
                 ),
@@ -2626,13 +3519,15 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                  borderSide: BorderSide.none,
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Colors.blue), // 10x10 theme color
+                                  borderSide: const BorderSide(color: const Color(0xFF00ACC1)), // 10x10 theme color
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                fillColor: Colors.grey[100],
+                                filled: true,
                               ),
                             ),
                           ),
@@ -2640,7 +3535,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                           ElevatedButton(
                             onPressed: _isRegistering ? null : _register10x10Program,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue, // 10x10 theme color
+                              backgroundColor: const Color(0xFF00ACC1), // 10x10 theme color
                               foregroundColor: Colors.white,
                               disabledBackgroundColor: Colors.grey.shade400,
                               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -2716,7 +3611,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                       width: 4,
                       height: 60,
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: const Color(0xFF00ACC1),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -2805,7 +3700,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
                     ),
                     const SizedBox(height: 12),
-                    _buildExerciseNameField(Colors.red),
+                    _buildExerciseNameField(const Color(0xFF00ACC1)),
                   ],
                 ),
               ),
@@ -2850,13 +3745,15 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
+                                borderSide: BorderSide.none,
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(color: Colors.red),
+                                borderSide: const BorderSide(color: const Color(0xFF00ACC1)),
                               ),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              fillColor: Colors.grey[100],
+                              filled: true,
                             ),
                           ),
                         ),
@@ -2897,15 +3794,15 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       '1RM: ${_maxWeightController.text}kg',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.red.shade700,
+                        color: const Color(0xFF00ACC1),
                       ),
                     ),
                   ),
@@ -2984,10 +3881,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFBA68C8) : Colors.grey.shade100,
+          color: isSelected ? const Color(0xFF00ACC1) : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFFBA68C8) : Colors.grey.shade300,
+            color: isSelected ? const Color(0xFF00ACC1) : Colors.grey.shade300,
           ),
         ),
         child: Center(
@@ -3017,11 +3914,11 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         fillColor: Colors.grey.shade50,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Color(0xFF81C784), width: 2),
+          borderSide: BorderSide(color: themeColor, width: 2),
         ),
       ),
       items: _exerciseOptions.map((String value) {
@@ -3038,7 +3935,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           _exerciseKindController.text = newValue ?? '';
         });
       },
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF81C784)),
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: themeColor),
       dropdownColor: Colors.white,
       borderRadius: BorderRadius.circular(20),
     );
@@ -3048,153 +3945,168 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     final ex = _editableExercises[index];
     final sets = ex['sets_data'] as List<Map<String, TextEditingController>>;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
+        border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _exerciseOptions.contains(ex['name']) ? ex['name'] : _exerciseOptions.first,
-                    decoration: InputDecoration(
-                      labelText: '種目',
-                      labelStyle: const TextStyle(color: Color(0xFF81C784), fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      fillColor: Colors.white,
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFF81C784), width: 2),
-                      ),
-                    ),
-                    items: _exerciseOptions.map((e) => DropdownMenuItem(
-                      value: e, 
-                      child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
-                    )).toList(),
-                    onChanged: (val) => setState(() => ex['name'] = val),
-                    icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF81C784), size: 20),
-                    dropdownColor: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    onPressed: () => _removeExercise(index),
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                const Text('セット数', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF424242))),
-                const Spacer(),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      IconButton(
-                        onPressed: () => _updateSetsCount(index, ex['sets_count'] - 1),
-                        icon: const Icon(Icons.remove_rounded, size: 20),
-                        color: Color(0xFFBA68C8), // Light Purple
+                      DropdownButtonFormField<String>(
+                        value: _exerciseOptions.contains(ex['name']) ? ex['name'] : _exerciseOptions.first,
+                        decoration: InputDecoration(
+                          labelText: '種目',
+                          labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          fillColor: Colors.grey[100],
+                          filled: true,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: themeColor, width: 2),
+                          ),
+                        ),
+                        items: _exerciseOptions.map((e) => DropdownMenuItem(
+                          value: e, 
+                          child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
+                        )).toList(),
+                        onChanged: (val) => setState(() => ex['name'] = val),
+                        icon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      Text(
-                        '${ex['sets_count']}',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF424242)),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          const Text('セット数', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF212121))), // Increased
+                          const Spacer(),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () => _updateSetsCount(index, ex['sets_count'] - 1),
+                                  icon: const Icon(Icons.remove_rounded, size: 20),
+                                  color: Colors.grey.shade600,
+                                ),
+                                Text(
+                                  '${ex['sets_count']}',
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF212121)), // Increased
+                                ),
+                                IconButton(
+                                  onPressed: () => _updateSetsCount(index, ex['sets_count'] + 1),
+                                  icon: const Icon(Icons.add_rounded, size: 20),
+                                  color: themeColor,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        onPressed: () => _updateSetsCount(index, ex['sets_count'] + 1),
-                        icon: const Icon(Icons.add_rounded, size: 20),
-                        color: Color(0xFF81C784), // Light Green
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16.0),
+                        child: Divider(height: 1, thickness: 1, color: Color(0xFFF5F5F5)),
                       ),
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12.0),
+                        child: Row(
+                          children: [
+                            Expanded(flex: 1, child: Text('SET', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF424242), letterSpacing: 1))), // Darker/Larger
+                            Expanded(flex: 3, child: Text('WEIGHT (kg)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF424242), letterSpacing: 1))), // Darker/Larger
+                            SizedBox(width: 16),
+                            Expanded(flex: 3, child: Text('REPS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF424242), letterSpacing: 1))), // Darker/Larger
+                          ],
+                        ),
+                      ),
+                      ...List.generate(sets.length, (setIndex) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 1,
+                                child: Text(
+                                  '#${setIndex + 1}',
+                                  style: TextStyle(fontWeight: FontWeight.w900, color: themeColor),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: sets[setIndex]['weight'],
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: InputDecoration(
+                                    hintText: '0.0',
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    fillColor: Colors.grey.shade50,
+                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF212121)), // Increased
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: sets[setIndex]['reps'],
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    hintText: '10',
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    fillColor: Colors.grey.shade50,
+                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF212121)), // Increased
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16.0),
-              child: Divider(height: 1, thickness: 1, color: Color(0xFFF5F5F5)),
-            ),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 12.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 1, child: Text('SET', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1))),
-                  Expanded(flex: 3, child: Text('WEIGHT (kg)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1))),
-                  SizedBox(width: 16),
-                  Expanded(flex: 3, child: Text('REPS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1))),
-                ],
               ),
-            ),
-            ...List.generate(sets.length, (setIndex) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: Text(
-                        '#${setIndex + 1}',
-                        style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFBA68C8)),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: sets[setIndex]['weight'],
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          hintText: '0.0',
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          fillColor: Colors.grey.shade50,
-                        ),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: sets[setIndex]['reps'],
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          hintText: '10',
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          fillColor: Colors.grey.shade50,
-                        ),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
+              // 削除ボタン (統一デザイン)
+              Material(
+                color: Colors.red.shade50,
+                child: InkWell(
+                  onTap: () => _removeExercise(index),
+                  child: Container(
+                    width: 64,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 24),
+                  ),
                 ),
-              );
-            }),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3219,7 +4131,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               width: 4,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFBA68C8),
+                color: const Color(0xFF00ACC1),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -3242,14 +4154,14 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFBA68C8).withValues(alpha: 0.1),
+                color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '${day['sets']}x${day['reps']} @ ${day['weight']}kg',
+                '${day['reps']}x${day['sets']} @ ${day['weight']}kg',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFFBA68C8),
+                  color: const Color(0xFF00ACC1),
                   fontSize: 15,
                 ),
               ),
@@ -3286,7 +4198,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                       width: 4,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: const Color(0xFF00ACC1),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -3305,13 +4217,13 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
+                      color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '+${increase.toStringAsFixed(1)}kg',
-                      style: TextStyle(
-                        color: Colors.green.shade700,
+                      style: const TextStyle(
+                        color: Color(0xFF00ACC1),
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -3344,14 +4256,14 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      '${day['sets']}x${day['reps']}',
-                      style: TextStyle(
+                      '${day['reps']}x${day['sets']}',
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.red.shade700,
+                        color: const Color(0xFF00ACC1),
                         fontSize: 13,
                       ),
                     ),
@@ -3387,590 +4299,102 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
 class _TodaysWorkoutSection extends StatelessWidget {
   final List<WorkoutSchedule> upcomingSchedules;
-    final void Function(WorkoutSchedule) onStart;
-    final VoidCallback onAddSchedule;
-  
-    const _TodaysWorkoutSection({
-      required this.upcomingSchedules,
-      required this.onStart,
-      required this.onAddSchedule,
-    });
-  
+  final void Function(WorkoutSchedule) onStart;
+  final VoidCallback onAddSchedule;
+  final VoidCallback onRefresh;
+
+  const _TodaysWorkoutSection({
+    required this.upcomingSchedules,
+    required this.onStart,
+    required this.onAddSchedule,
+    required this.onRefresh,
+  });
+
   static Color getMenuColor(String menuTitle) {
-    switch (menuTitle) {
-      case 'Smolov Jr.':
-        return const Color(0xFFFFB74D); // Light Orange
-      case '10x10':
-        return const Color(0xFF81C784); // Light Green
-      case '5/3/1':
-        return const Color(0xFFBA68C8); // Light Purple
-      default:
-        return const Color(0xFF81C784); // Default to Light Green
-    }
+    return const Color(0xFF00ACC1); // Cyan
   }
 
   static Color getExerciseColor(String? exercise) {
-    if (exercise == null) return const Color(0xFF424242);
-    switch (exercise) {
-      case 'Benchpress':
-        return const Color(0xFF81C784); // Light Green
-      case 'Squat':
-        return const Color(0xFFFFB74D); // Light Orange
-      case 'Weighted Pullup':
-        return const Color(0xFFBA68C8); // Light Purple
-      case 'Bulgarian Split Squat':
-        return const Color(0xFF81C784); // Light Green
-      default:
-        return const Color(0xFF424242);
-    }
+    return const Color(0xFF00ACC1); // Cyan
   }
-        
-              @override
-        
-              Widget build(BuildContext context) {
-        
-                final today = DateUtils.dateOnly(DateTime.now());
-        
-                final List<WorkoutSchedule> todaysWorkouts = upcomingSchedules
-        
-                    .where((s) => DateUtils.dateOnly(s.scheduledDate) == today)
-        
-                    .toList();
-        
-            
-        
-                if (todaysWorkouts.isEmpty) {
-        
-                  return Card(
-        
-                    elevation: 0,
-        
-                    shape: RoundedRectangleBorder(
-        
-                      borderRadius: BorderRadius.circular(24),
-        
-                      side: const BorderSide(color: Color(0xFFEEEEEE), width: 2),
-        
-                    ),
-        
-                    color: const Color(0xFFF9FAFB),
-        
-                    child: Padding(
-        
-                      padding: const EdgeInsets.all(24.0),
-        
-                      child: Column(
-        
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-        
-                        children: [
-        
-                          const Text(
-        
-                            '今日の予定はありません',
-        
-                            style: TextStyle(
-        
-                              fontSize: 18,
-        
-                              fontWeight: FontWeight.bold,
-        
-                              color: Color(0xFF424242),
-        
-                            ),
-        
-                          ),
-        
-                          const SizedBox(height: 16),
-        
-                          ElevatedButton(
-        
-                            onPressed: onAddSchedule,
-        
-                            style: ElevatedButton.styleFrom(
-        
-                              backgroundColor: const Color(0xFF81C784),
-        
-                              foregroundColor: Colors.white,
-        
-                            ),
-        
-                            child: const Text('＋ スケジュールを追加'),
-        
-                          ),
-        
-                        ],
-        
-                      ),
-        
-                    ),
-        
-                  );
-        
-                }
-        
-            
-        
-                return Column(
-        
-                  children: todaysWorkouts
-        
-                      .map((schedule) => _TodaysWorkoutCard(
-        
-                            schedule: schedule,
-        
-                            onStart: () => onStart(schedule),
-        
-                          ))
-        
-                      .toList(),
-        
-                );
-        
-              }
-        
-            }
 
-// New widget for displaying a single today's workout
-class _TodaysWorkoutCard extends StatelessWidget {
-  final WorkoutSchedule schedule;
-  final VoidCallback onStart;
-
-  const _TodaysWorkoutCard({
-    required this.schedule,
-    required this.onStart,
-  });
-
-    @override
-
-    Widget build(BuildContext context) {
-
-      final menuColor = _TodaysWorkoutSection.getMenuColor(schedule.menuTitle);
-
-      final exerciseColor = _TodaysWorkoutSection.getExerciseColor(schedule.sessionTitle);
-
-  
-
-      // カスタム詳細を表示用に整形 (Light theme version)
-
-      Widget buildCustomDetails(String details) {
-
-        if (details.isEmpty) return const SizedBox.shrink();
-
-  
-
-        return Column(
-
-          crossAxisAlignment: CrossAxisAlignment.start,
-
-          children: details.split('\n').map((line) {
-
-            if (line.isEmpty) return const SizedBox.shrink();
-
-            final parts = line.split(': ');
-
-            final exercise = parts[0];
-
-            final setsStr = parts.length > 1 ? parts[1] : '';
-
-            final sets = setsStr.split(', ');
-
-  
-
-            return Container(
-
-              margin: const EdgeInsets.only(top: 12),
-
-              width: double.infinity,
-
-              padding: const EdgeInsets.all(16),
-
-              decoration: BoxDecoration(
-
-                color: Colors.grey.shade50,
-
-                borderRadius: BorderRadius.circular(16),
-
-                border: Border.all(color: Colors.grey.shade100),
-
-              ),
-
-              child: Column(
-
-                crossAxisAlignment: CrossAxisAlignment.start,
-
-                children: [
-
-                  Text(
-
-                    exercise,
-
-                    style: const TextStyle(
-
-                      fontSize: 15,
-
-                      fontWeight: FontWeight.bold,
-
-                      color: Color(0xFF424242),
-
-                    ),
-
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  ...sets.map((setInfo) => Padding(
-
-                        padding: const EdgeInsets.only(bottom: 8),
-
-                        child: Row(
-
-                          children: [
-
-                            Container(
-
-                              width: 6,
-
-                              height: 6,
-
-                              decoration: BoxDecoration(
-
-                                shape: BoxShape.circle,
-
-                                color: exerciseColor.withValues(alpha: 0.6),
-
-                              ),
-
-                            ),
-
-                            const SizedBox(width: 12),
-
-                            Text(
-
-                              setInfo,
-
-                              style: TextStyle(
-
-                                fontSize: 14,
-
-                                color: Colors.grey.shade700,
-
-                                fontWeight: FontWeight.w500,
-
-                              ),
-
-                            ),
-
-                          ],
-
-                        ),
-
-                      )).toList(),
-
-                ],
-
-              ),
-
-            );
-
-          }).toList(),
-
-        );
-
-      }
-
-  
-
-          return Container(
-
-  
-
-            margin: const EdgeInsets.only(bottom: 24),
-
-  
-
-            decoration: BoxDecoration(
-
-  
-
-              color: Colors.white,
-
-  
-
-              borderRadius: BorderRadius.circular(24),
-
-  
-
-              border: Border.all(color: const Color(0xFF81C784), width: 2.0),
-
-  
-
-              boxShadow: [
-
-  
-
-                BoxShadow(
-
-  
-
-                  color: const Color(0xFF81C784).withValues(alpha: 0.2), // Light Green shadow
-
-  
-
-                  blurRadius: 16,
-
-  
-
-                  offset: const Offset(0, 8),
-
-  
-
-                ),
-
-  
-
-              ],
-
-  
-
-            ),
-
-  
-
-            child: Padding(
-
-  
-
-              padding: const EdgeInsets.all(24.0),
-
-  
-
-      
-
-          child: Column(
-
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-
-              Row(
-
-                children: [
-
-                  Container(
-
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-
-                    decoration: BoxDecoration(
-
-                      color: const Color(0xFF81C784).withValues(alpha: 0.1),
-
-                      borderRadius: BorderRadius.circular(8),
-
-                    ),
-
-                    child: const Text(
-
-                      "TODAY'S WORKOUT",
-
-                      style: TextStyle(
-
-                        color: Color(0xFF81C784),
-
-                        fontSize: 11,
-
-                        fontWeight: FontWeight.w900,
-
-                        letterSpacing: 1.0,
-
-                      ),
-
-                    ),
-
-                  ),
-
-                  const Spacer(),
-
-                  Text(
-
-                    DateFormat('MMM d').format(schedule.scheduledDate),
-
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.bold),
-
-                  ),
-
-                ],
-
-              ),
-
-              const SizedBox(height: 20),
-
-              Row(
-
-                children: [
-
-                  // メニュー名バッジ
-
-                  Container(
-
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-
-                    decoration: BoxDecoration(
-
-                      color: menuColor.withValues(alpha: 0.1),
-
-                      borderRadius: BorderRadius.circular(12),
-
-                    ),
-
-                    child: Text(
-
-                      schedule.menuTitle,
-
-                      style: TextStyle(
-
-                        color: menuColor,
-
-                        fontSize: 14,
-
-                        fontWeight: FontWeight.w900,
-
-                      ),
-
-                    ),
-
-                  ),
-
-                  if (schedule.sessionTitle != null && schedule.sessionTitle!.isNotEmpty) ...[
-
-                    const SizedBox(width: 12),
-
-                    Expanded(
-
-                      child: Text(
-
-                        schedule.sessionTitle!,
-
-                        style: const TextStyle(
-
-                          fontSize: 20,
-
-                          fontWeight: FontWeight.w800,
-
-                          color: Color(0xFF424242),
-
-                        ),
-
-                        overflow: TextOverflow.ellipsis,
-
-                      ),
-
-                    ),
-
-                  ],
-
-                ],
-
-              ),
-
-              const SizedBox(height: 12),
-
-              if (schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty) ...[
-
-                (schedule.menuDifficulty == 'Custom' || !['Smolov Jr.', '10x10', '5/3/1'].contains(schedule.menuTitle))
-
-                    ? buildCustomDetails(schedule.workoutDetails!)
-
-                    : Padding(
-
-                        padding: const EdgeInsets.only(top: 16.0),
-
-                        child: Row(
-
-                          children: [
-
-                            Icon(Icons.fitness_center, color: Colors.grey.shade400, size: 20),
-
-                            const SizedBox(width: 10),
-
-                            Expanded(
-
-                              child: Text(
-
-                                schedule.workoutDetails!,
-
-                                style: TextStyle(
-
-                                  fontSize: 18,
-
-                                  color: Colors.grey.shade700,
-
-                                  fontWeight: FontWeight.w600,
-
-                                ),
-
-                              ),
-
-                            ),
-
-                          ],
-
-                        ),
-
-                      ),
-
-              ],
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-
-                width: double.infinity,
-
-                child: ElevatedButton(
-
-                  onPressed: onStart,
-
-                  style: ElevatedButton.styleFrom(
-
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-
-                    backgroundColor: const Color(0xFF81C784),
-
-                    foregroundColor: Colors.white,
-
-                    shape: RoundedRectangleBorder(
-
-                      borderRadius: BorderRadius.circular(16),
-
-                    ),
-
-                  ),
-
-                  child: const Text(
-
-                    'トレーニングを開始',
-
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-
-                  ),
-
-                ),
-
-              ),
-
-            ],
-
+  @override
+  Widget build(BuildContext context) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final List<WorkoutSchedule> todaysWorkouts = upcomingSchedules
+        .where((s) => DateUtils.dateOnly(s.scheduledDate) == today)
+        .toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              todaysWorkouts.isEmpty ? '今日の予定はありません' : '今日のトレーニング',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF424242),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (todaysWorkouts.isEmpty)
+              ElevatedButton(
+                onPressed: onAddSchedule,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00ACC1),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('＋ スケジュールを追加'),
+              )
+            else
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/today_workouts', arguments: todaysWorkouts)
+                      .then((_) => onRefresh());
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00ACC1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.play_circle_outline, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Text(
+                      'トレーニングを開始 (${todaysWorkouts.length}件)',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
-
-      );
-
-    }
-
-  
+      ),
+    );
+  }
 }
+
+// --- Dashboard Screens ---
 
 
 class _UpcomingWorkouts extends StatelessWidget {
@@ -3991,9 +4415,19 @@ class _UpcomingWorkouts extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Upcoming',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        Text.rich(
+          TextSpan(
+            children: [
+              const TextSpan(
+                text: 'Upcoming',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF212121)),
+              ),
+              TextSpan(
+                text: ' （直近3日）',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         if (schedules.isEmpty)
@@ -4024,18 +4458,8 @@ class _ScheduleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // メニュー名に対応した色を取得
     Color getMenuColor(String menuTitle) {
-      switch (menuTitle) {
-        case 'Smolov Jr.':
-          return Colors.red;
-        case '10x10':
-          return Colors.blue;
-        case '5/3/1':
-          return const Color(0xFFBA68C8);
-        default:
-          return Colors.grey;
-      }
+      return const Color(0xFF00ACC1); // All programs unified to Cyan
     }
 
     final menuColor = getMenuColor(schedule.menuTitle);
@@ -4044,174 +4468,201 @@ class _ScheduleCard extends StatelessWidget {
     // 今日の日付かどうかを判定
     final isToday = DateUtils.dateOnly(schedule.scheduledDate) == DateUtils.dateOnly(DateTime.now());
 
+    // 種目名から最適なアイコンを返す
+    IconData _getExerciseIcon(String name) {
+      final lowercaseName = name.toLowerCase();
+      if (lowercaseName.contains('squat')) return Icons.accessibility_new_rounded;
+      if (lowercaseName.contains('bench')) return Icons.horizontal_rule_rounded;
+      if (lowercaseName.contains('deadlift')) return Icons.vertical_align_top_rounded;
+      return Icons.fitness_center_rounded;
+    }
+
     // カスタム詳細を表示用に整形
     Widget buildCustomDetails(String details) {
       if (details.isEmpty) return const SizedBox.shrink();
       
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: details.split('\n').map((line) {
-          if (line.isEmpty) return const SizedBox.shrink();
-          final parts = line.split(': ');
-          final exercise = parts[0];
-          final setsStr = parts.length > 1 ? parts[1] : '';
-          final sets = setsStr.split(', ');
-          
-          return Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isToday ? Colors.white : Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      final lines = details.split('\n').where((line) => line.isNotEmpty).toList();
+      
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          children: lines.asMap().entries.map((entry) {
+            final line = entry.value;
+            final isLast = entry.key == lines.length - 1;
+            
+            String exercise = line;
+            String setsStr = '';
+            if (line.contains(': ')) {
+              final parts = line.split(': ');
+              exercise = parts[0];
+              setsStr = parts.length > 1 ? parts[1] : '';
+            }
+
+            return Column(
               children: [
-                Text(
-                  exercise,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF424242),
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(_getExerciseIcon(exercise), color: const Color(0xFF00ACC1), size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            exercise,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF212121),
+                            ),
+                          ),
+                          if (setsStr.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              setsStr,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF424242),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                ...sets.map((setInfo) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black12,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        setInfo,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                if (!isLast) 
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(height: 1, thickness: 0.5, color: Colors.grey.shade200),
                   ),
-                )).toList(),
               ],
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       );
     }
 
-    return Card(
-      elevation: isToday ? 2 : 0,
-      shape: RoundedRectangleBorder(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: isToday ? const Color(0xFFF5F5F5) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: isToday ? const Color(0xFF424242) : Colors.grey.shade200,
-          width: isToday ? 1.2 : 1,
+        border: Border.all(
+          color: Colors.grey.shade300,
+          width: 1.2,
         ),
       ),
-      color: isToday ? const Color(0xFFFAFAFA) : Colors.white,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  DateFormat.MMMEd().format(schedule.scheduledDate),
-                  style: TextStyle(
-                    color: isToday ? const Color(0xFF424242) : Colors.grey.shade600,
-                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                if (isToday)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF424242),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'TODAY',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: menuColor,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    schedule.menuTitle,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (schedule.sessionTitle != null && schedule.sessionTitle!.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      schedule.sessionTitle!,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: exerciseColor,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            if (schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              // カスタムまたは自作メニューの場合はリスト展開、それ以外は一行表示
-              (schedule.menuDifficulty == 'Custom' || !['Smolov Jr.', '10x10', '5/3/1'].contains(schedule.menuTitle))
-                  ? buildCustomDetails(schedule.workoutDetails!)
-                  : Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: Row(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.fitness_center, size: 16, color: Colors.grey.shade500),
-                          const SizedBox(width: 8),
                           Text(
-                            schedule.workoutDetails!,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade700,
+                            DateFormat.MMMEd().format(schedule.scheduledDate),
+                            style: const TextStyle(
+                              color: Color(0xFF212121),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                          if (isToday)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00ACC1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'TODAY',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: menuColor,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              schedule.menuTitle,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
+                      if (schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        // 有名プログラムも標準デザインを使用するようにホワイトリストに追加
+                        (schedule.menuDifficulty == 'Custom' || !['Smolov Jr.', '10x10', '5/3/1', 'StrongLifts 5x5', 'Texas Method', 'Candito 6-Week', 'Sheiko', 'Westside Conjugate'].contains(schedule.menuTitle))
+                            ? buildCustomDetails(schedule.workoutDetails!)
+                            : Padding(
+                                padding: const EdgeInsets.only(top: 12.0),
+                                child: Row(
+                                  children: [
+                                    Icon(_getExerciseIcon(schedule.sessionTitle ?? ''), size: 20, color: const Color(0xFF00ACC1)),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        schedule.workoutDetails!,
+                                        style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF212121),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              // 削除ボタン (統一デザイン)
+              Material(
+                color: Colors.red.shade50,
+                child: InkWell(
+                  onTap: () => onDelete(schedule.id),
+                  child: Container(
+                    width: 56,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
+                  ),
+                ),
+              ),
             ],
-          ],
+          ),
         ),
       ),
     );

@@ -90,7 +90,7 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
   }
 
   Color _getThemeColor() {
-    return const Color(0xFF81C784); // Light Green
+    return const Color(0xFF00ACC1); // Cyan
   }
 
   Future<void> _saveMenu() async {
@@ -140,7 +140,7 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('カスタムプログラムを作成しました'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00ACC1),
           ),
         );
         Navigator.pop(context, true);
@@ -177,11 +177,18 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ヘッダー説明カード
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.grey.shade300),
+                border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -202,7 +209,7 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
                         children: [
                           Text(
                             'オリジナルプログラムの作成',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                           ),
                           SizedBox(height: 4),
                           Text(
@@ -219,35 +226,36 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
             const SizedBox(height: 20),
 
             // メニュー名入力
-            const Text('プログラム名', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('プログラム名', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
             const SizedBox(height: 8),
             TextField(
               controller: _menuNameController,
               decoration: InputDecoration(
                 hintText: '例: 胸トレ、週明けルーチン',
                 filled: true,
-                fillColor: Colors.grey.shade100,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                fillColor: Colors.grey[100],
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: themeColor, width: 2),
                 ),
               ),
             ),
             const SizedBox(height: 24),
 
             // 種目リスト
-            const Text('トレーニング内容', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('トレーニング内容', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
             const SizedBox(height: 12),
             ...List.generate(_exercises.length, (index) => _buildExerciseCard(index, themeColor)),
 
             // 種目追加ボタン
             OutlinedButton.icon(
               onPressed: _addExercise,
-              icon: const Icon(Icons.add),
-              label: const Text('種目を追加'),
+              icon: Icon(Icons.add, color: themeColor),
+              label: Text('種目を追加', style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                side: BorderSide(color: themeColor),
               ),
             ),
             const SizedBox(height: 40),
@@ -258,9 +266,10 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveMenu,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF81C784), // Light Green
+                  backgroundColor: themeColor,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
                 ),
                 child: _isSaving
                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
@@ -282,125 +291,152 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
     final ex = _exercises[index];
     final sets = ex['sets_data'] as List<Map<String, TextEditingController>>;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade300),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: ex['name'],
-                    decoration: InputDecoration(
-                      labelText: '種目',
-                      labelStyle: const TextStyle(color: Color(0xFF81C784), fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      fillColor: Colors.white,
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: ex['name'],
+                        decoration: InputDecoration(
+                          labelText: '種目',
+                          labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0),
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          fillColor: Colors.grey[100],
+                          filled: true,
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: themeColor, width: 2),
+                          ),
+                        ),
+                        items: _exerciseOptions.map((e) => DropdownMenuItem(
+                          value: e, 
+                          child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
+                        )).toList(),
+                        onChanged: (val) => setState(() => ex['name'] = val),
+                        icon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFF81C784), width: 2),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Text('セット数:', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
+                          const SizedBox(width: 12),
+                          IconButton(
+                            onPressed: () => _updateSetsCount(index, ex['sets_count'] - 1),
+                            icon: const Icon(Icons.remove_circle_outline),
+                            color: Colors.grey.shade600,
+                          ),
+                          Text('${ex['sets_count']}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF212121))), // Increased
+                          IconButton(
+                            onPressed: () => _updateSetsCount(index, ex['sets_count'] + 1),
+                            icon: const Icon(Icons.add_circle_outline),
+                            color: themeColor,
+                          ),
+                        ],
                       ),
-                    ),
-                    items: _exerciseOptions.map((e) => DropdownMenuItem(
-                      value: e, 
-                      child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
-                    )).toList(),
-                    onChanged: (val) => setState(() => ex['name'] = val),
-                    icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF81C784), size: 20),
-                    dropdownColor: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                      const Divider(),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Row(
+                          children: [
+                            Expanded(flex: 1, child: Text('セット', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF424242)))), // Darker/Bolder
+                            Expanded(flex: 3, child: Text('重量 (kg)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF424242)))), // Darker/Bolder
+                            SizedBox(width: 16),
+                            Expanded(flex: 3, child: Text('回数 (reps)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF424242)))), // Darker/Bolder
+                          ],
+                        ),
+                      ),
+                      ...List.generate(sets.length, (setIndex) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              Expanded(flex: 1, child: Text('#${setIndex + 1}', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF424242)))), // Darker
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: sets[setIndex]['weight'],
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF212121)), // Increased
+                                  decoration: InputDecoration(
+                                    hintText: '0.0',
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: themeColor),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey[100],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16), // Fixed spacing to match other screens if needed, but keeping 16 as per prev attempt
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: sets[setIndex]['reps'],
+                                  keyboardType: TextInputType.number,
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF212121)), // Increased
+                                  decoration: InputDecoration(
+                                    hintText: '10',
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: themeColor),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.grey[100],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    onPressed: () => _removeExercise(index),
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('セット数:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 12),
-                IconButton(
-                  onPressed: () => _updateSetsCount(index, ex['sets_count'] - 1),
-                  icon: const Icon(Icons.remove_circle_outline),
-                ),
-                Text('${ex['sets_count']}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                IconButton(
-                  onPressed: () => _updateSetsCount(index, ex['sets_count'] + 1),
-                  icon: const Icon(Icons.add_circle_outline),
-                ),
-              ],
-            ),
-            const Divider(),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 1, child: Text('セット', style: TextStyle(fontSize: 12, color: Colors.grey))),
-                  Expanded(flex: 3, child: Text('重量 (kg)', style: TextStyle(fontSize: 12, color: Colors.grey))),
-                  SizedBox(width: 16),
-                  Expanded(flex: 3, child: Text('回数 (reps)', style: TextStyle(fontSize: 12, color: Colors.grey))),
-                ],
               ),
-            ),
-            ...List.generate(sets.length, (setIndex) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
-                  children: [
-                    Expanded(flex: 1, child: Text('#${setIndex + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: sets[setIndex]['weight'],
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          hintText: '0.0',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: sets[setIndex]['reps'],
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          hintText: '10',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        ),
-                      ),
-                    ),
-                  ],
+              // 削除ボタン (統一デザイン)
+              Material(
+                color: Colors.red.shade50,
+                child: InkWell(
+                  onTap: () => _removeExercise(index),
+                  child: Container(
+                    width: 56,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 24),
+                  ),
                 ),
-              );
-            }),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );

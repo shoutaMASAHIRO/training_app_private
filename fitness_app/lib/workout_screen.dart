@@ -1,12 +1,14 @@
 import 'dart:async';
-import 'package:fitness_app/home_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:fitness_app/home_screen.dart'; // Add this import
 import 'package:fitness_app/models/workout_schedule.dart';
-import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_log.dart';
+import 'package:fitness_app/services/database_service.dart';
 
 class WorkoutScreen extends StatefulWidget {
   final WorkoutSchedule schedule;
+
   const WorkoutScreen({super.key, required this.schedule});
 
   @override
@@ -15,12 +17,11 @@ class WorkoutScreen extends StatefulWidget {
 
 class _WorkoutScreenState extends State<WorkoutScreen> {
   final DatabaseService _apiService = DatabaseService();
-  late final WorkoutSchedule _todaysSchedule;
-  int _selectedIndex = 0; // Default to 'Dashboard'
+  late WorkoutSchedule _todaysSchedule;
+  int _selectedIndex = 1; // Workouts tab
 
-  // 成功・失敗カウント
-  int _successCount = 0;
-  int _failCount = 0;
+  // 各セットの状態 (null: 未完了, true: 成功, false: 失敗)
+  List<bool?> _setStatuses = [];
 
   // ストップウォッチ
   final Stopwatch _stopwatch = Stopwatch();
@@ -31,6 +32,42 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void initState() {
     super.initState();
     _todaysSchedule = widget.schedule;
+    _initializeSetStatuses();
+  }
+
+  void _initializeSetStatuses() {
+    final details = _todaysSchedule.workoutDetails ?? '';
+    final menuTitle = _todaysSchedule.menuTitle;
+    int totalSets = 0;
+
+    if (details.contains(':') || details.contains('\n')) {
+      // カスタムメニュー形式
+      final lines = details.split('\n');
+      for (var line in lines) {
+        if (line.isEmpty || !line.contains(':')) continue;
+        final parts = line.split(': ');
+        final setsStr = parts.length > 1 ? parts[1] : '';
+        totalSets += setsStr.split(', ').where((s) => s.isNotEmpty).length;
+      }
+    } else if (details.contains('x') || details.contains('X')) {
+      // Smolov Jr / 10x10 / 531 などの形式
+      final regExp = RegExp(r'(\d+)\s*[xX]\s*(\d+)');
+      final match = regExp.firstMatch(details);
+      
+      if (match != null) {
+        final val1 = int.parse(match.group(1)!);
+        final val2 = int.parse(match.group(2)!);
+        
+        if (menuTitle == 'Smolov Jr.' || menuTitle == '5/3/1') {
+          totalSets = val2; // Reps x Sets
+        } else {
+          totalSets = val1; // Sets x Reps
+        }
+      }
+    }
+
+    if (totalSets == 0 && details.isNotEmpty) totalSets = 1;
+    _setStatuses = List.filled(totalSets, null);
   }
 
   @override
@@ -42,51 +79,34 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
-
-    setState(() {
-      _selectedIndex = index;
-    });
-
+    setState(() { _selectedIndex = index; });
+    
     switch (index) {
-      case 0: // Dashboard
-        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 0});
-        break;
-      case 1: // Workouts
-        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1});
-        break;
-      case 2: // Progress
-        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2});
-        break;
-      case 3: // Logs
-        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3});
-        break;
+      case 0: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 0}); break;
+      case 1: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1}); break;
+      case 2: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2}); break;
+      case 3: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3}); break;
     }
   }
 
   void _startStopwatch() {
     _stopwatch.start();
     _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
-      setState(() {
-        _elapsedTime = _formatTime(_stopwatch.elapsed);
-      });
+      setState(() { _elapsedTime = _formatTime(_stopwatch.elapsed); });
     });
   }
 
   void _stopStopwatch() {
     _stopwatch.stop();
     _timer?.cancel();
-    setState(() {
-      _elapsedTime = _formatTime(_stopwatch.elapsed);
-    });
+    setState(() { _elapsedTime = _formatTime(_stopwatch.elapsed); });
   }
 
   void _resetStopwatch() {
     _stopwatch.reset();
     _stopwatch.stop();
     _timer?.cancel();
-    setState(() {
-      _elapsedTime = '00:00.00';
-    });
+    setState(() { _elapsedTime = '00:00.00'; });
   }
 
   String _formatTime(Duration duration) {
@@ -97,634 +117,323 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     return '$minutes:$seconds.$centiseconds';
   }
 
-  void _onSuccess() {
-    setState(() {
-      _successCount++;
-    });
+  void _updateSetStatus(int index, bool? status) {
+    setState(() { _setStatuses[index] = status; });
   }
 
-  void _onFail() {
-    setState(() {
-      _failCount++;
-    });
-  }
-
-  void _resetCounts() {
-    setState(() {
-      _successCount = 0;
-      _failCount = 0;
-    });
+  Future<void> _resetCounts() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Column(
+          children: [
+            Icon(Icons.refresh_rounded, color: Color(0xFF00ACC1), size: 48),
+            SizedBox(height: 16),
+            Text('カウントのリセット', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          ],
+        ),
+        content: const Text('現在のセット記録を\n全てリセットしますか？', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161))),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text('キャンセル', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00ACC1), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: const Text('リセット', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      setState(() { _setStatuses = List.filled(_setStatuses.length, null); });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isSmolovJr = _todaysSchedule.menuTitle == 'Smolov Jr.';
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_todaysSchedule.menuTitle),
+      appBar: AppBar(title: Text(_todaysSchedule.menuTitle)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildMainInfoCard(),
+            const SizedBox(height: 16),
+            _buildSummaryCard(),
+            const SizedBox(height: 16),
+            _buildTimerCard(),
+            const SizedBox(height: 24),
+            _buildCompleteButton(),
+          ],
+        ),
       ),
-      body: isSmolovJr
-          ? _buildSmolovJrWorkout()
-          : _buildGenericWorkout(),
-      bottomNavigationBar: AppBottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-      ),
+      bottomNavigationBar: AppBottomNavigationBar(currentIndex: _selectedIndex, onTap: _onItemTapped),
     );
   }
 
-  Widget _buildSmolovJrWorkout() {
-    final totalCount = _successCount + _failCount;
-    final isRunning = _stopwatch.isRunning;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 今日のメニュー詳細
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'Smolov Jr.',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  if (_todaysSchedule.sessionTitle != null && _todaysSchedule.sessionTitle!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _todaysSchedule.sessionTitle!,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF424242),
-                      ),
-                    ),
-                  ],
-                  if (_todaysSchedule.workoutDetails != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _todaysSchedule.workoutDetails!,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // カウント結果表示
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    'セット結果',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildCountDisplay('成功', _successCount, Colors.green.shade700),
-                      _buildCountDisplay('失敗', _failCount, Colors.red.shade700),
-                      _buildCountDisplay('合計', totalCount, Colors.blueGrey),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ストップウォッチ
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    'レストタイマー',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _elapsedTime,
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w300,
-                      color: isRunning ? const Color(0xFF424242) : Colors.grey.shade600,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton(
-                        onPressed: isRunning ? _stopStopwatch : _startStopwatch,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isRunning ? const Color(0xFFFFB74D) : const Color(0xFF81C784), // Orange stop, Green start
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: Text(isRunning ? 'ストップ' : 'スタート'),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton(
-                        onPressed: _resetStopwatch,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade600,
-                          side: BorderSide(color: Colors.grey.shade300),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('リセット'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // 成功・失敗ボタン
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _onSuccess,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF81C784), // Light Green
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    '成功',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _onFail,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFB74D), // Light Orange
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    '失敗',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // カウントリセット
-          TextButton(
-            onPressed: _resetCounts,
-            child: const Text(
-              'カウントをリセット',
-              style: TextStyle(color: Color(0xFFBA68C8), fontWeight: FontWeight.bold), // Light Purple
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // 完了ボタン
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                // スケジュールを完了にする
-                await _apiService.completeSchedule(_todaysSchedule.id);
-
-                // ログを保存
-                final log = WorkoutLog(
-                  completedDate: DateTime.now(),
-                  menuTitle: _todaysSchedule.menuTitle,
-                  workoutDetails: _todaysSchedule.workoutDetails,
-                  sessionTitle: _todaysSchedule.sessionTitle,
-                  successCount: _successCount,
-                  failCount: _failCount,
-                );
-                await _apiService.addLog(log);
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('ワークアウト完了！ 🎉'),
-                      backgroundColor: Color(0xFF81C784),
-                    ),
-                  );
-                  Navigator.pop(context);
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('エラー: $e'),
-                      backgroundColor: const Color(0xFFFFB74D),
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFBA68C8), // Light Purple
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            child: const Text(
-              'ワークアウト完了',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCountDisplay(String label, int count, Color color) {
+  Widget _buildMainInfoCard() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          '$count',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: color,
+        if (_todaysSchedule.sessionTitle != null && _todaysSchedule.sessionTitle!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: Text(_todaysSchedule.sessionTitle!, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF212121))),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-          ),
-        ),
+        _buildSetList(_todaysSchedule.workoutDetails ?? '', const Color(0xFF00ACC1)),
       ],
     );
   }
 
-  Widget _buildGenericWorkout() {
-    final totalCount = _successCount + _failCount;
-    final isRunning = _stopwatch.isRunning;
+  Widget _buildSetList(String details, Color themeColor) {
+    if (details.isEmpty) return const SizedBox.shrink();
+    List<Widget> setWidgets = [];
+    int globalSetIndex = 0;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+    if (details.contains(':') || details.contains('\n')) {
+      final lines = details.split('\n');
+      for (var line in lines) {
+        if (line.isEmpty || !line.contains(':')) continue;
+        final parts = line.split(': ');
+        final name = parts[0];
+        final sets = parts[1].split(', ').where((s) => s.isNotEmpty).toList();
+        setWidgets.add(_buildExerciseStatusCard(name, sets, globalSetIndex, themeColor));
+        globalSetIndex += sets.length;
+      }
+    } else {
+      final regExp = RegExp(r'(\d+)\s*[xX]\s*(\d+)');
+      final match = regExp.firstMatch(details);
+      if (match != null) {
+        final val1 = int.parse(match.group(1)!);
+        final val2 = int.parse(match.group(2)!);
+        int reps, numSets;
+        if (_todaysSchedule.menuTitle == 'Smolov Jr.' || _todaysSchedule.menuTitle == '5/3/1') {
+          reps = val1; numSets = val2;
+        } else {
+          numSets = val1; reps = val2;
+        }
+        String weight = details.contains('@') ? details.split('@')[1].trim() : '';
+        final sets = List.generate(numSets, (_) => '$reps reps ${weight.isNotEmpty ? "@ $weight" : ""}');
+        setWidgets.add(_buildExerciseStatusCard(_todaysSchedule.menuTitle, sets, globalSetIndex, themeColor));
+      } else {
+        setWidgets.add(_buildExerciseStatusCard(_todaysSchedule.menuTitle, [details], globalSetIndex, themeColor));
+      }
+    }
+    return Column(children: setWidgets);
+  }
+
+  Widget _buildExerciseStatusCard(String name, List<String> sets, int startIndex, Color themeColor) {
+    final exerciseStatuses = _setStatuses.sublist(startIndex, (startIndex + sets.length).clamp(0, _setStatuses.length));
+    final success = exerciseStatuses.where((s) => s == true).length;
+    final fail = exerciseStatuses.where((s) => s == false).length;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 今日のメニュー詳細
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  if (_todaysSchedule.sessionTitle != null && _todaysSchedule.sessionTitle!.isNotEmpty) ...[
-                    Text(
-                      _todaysSchedule.sessionTitle!,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  Text(
-                    _todaysSchedule.menuTitle,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  if (_todaysSchedule.workoutDetails != null && _todaysSchedule.workoutDetails!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _todaysSchedule.workoutDetails!,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // カウント結果表示
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    'セット結果',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildCountDisplay('成功', _successCount, Colors.green.shade700),
-                      _buildCountDisplay('失敗', _failCount, Colors.red.shade700),
-                      _buildCountDisplay('合計', totalCount, Colors.blueGrey),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ストップウォッチ
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    'レストタイマー',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _elapsedTime,
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w300,
-                      color: isRunning ? const Color(0xFF424242) : Colors.grey.shade600,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      OutlinedButton(
-                        onPressed: isRunning ? _stopStopwatch : _startStopwatch,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: isRunning ? Colors.orange.shade700 : Colors.green.shade700,
-                          side: BorderSide(
-                            color: isRunning ? Colors.orange.shade700 : Colors.green.shade700,
-                          ),
-                        ),
-                        child: Text(isRunning ? 'ストップ' : 'スタート'),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton(
-                        onPressed: _resetStopwatch,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade600,
-                          side: BorderSide(color: Colors.grey.shade400),
-                        ),
-                        child: const Text('リセット'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // 成功・失敗ボタン
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _onSuccess,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.green.shade700,
-                    side: BorderSide(color: Colors.green.shade700),
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    '成功',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _onFail,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red.shade700,
-                    side: BorderSide(color: Colors.red.shade700),
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    '失敗',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(child: Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)))),
+              Row(children: [_buildSmallCountChip('成功', success, const Color(0xFF00ACC1)), const SizedBox(width: 6), _buildSmallCountChip('失敗', fail, Colors.red)]),
             ],
           ),
-          const SizedBox(height: 8),
-
-          // カウントリセット
-          TextButton(
-            onPressed: _resetCounts,
-            child: Text(
-              'カウントをリセット',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // 完了ボタン
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      await _apiService.completeSchedule(_todaysSchedule.id);
-
-                      // ログを保存
-                      final log = WorkoutLog(
-                        completedDate: DateTime.now(),
-                        menuTitle: _todaysSchedule.menuTitle,
-                        workoutDetails: _todaysSchedule.workoutDetails,
-                        successCount: _successCount,
-                        failCount: _failCount,
-                      );
-                      await _apiService.addLog(log);
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('ワークアウト完了！'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                        Navigator.pop(context, 'success');
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('エラー: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF81C784), // Light Green
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text('ワークアウト完了', style: TextStyle(fontWeight: FontWeight.w900)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      await _apiService.completeSchedule(_todaysSchedule.id);
-                      await _apiService.addLog(
-                        WorkoutLog(
-                          completedDate: DateTime.now(),
-                          menuTitle: _todaysSchedule.menuTitle,
-                          workoutDetails: _todaysSchedule.workoutDetails,
-                          sessionTitle: _todaysSchedule.sessionTitle,
-                          successCount: _successCount,
-                          failCount: _failCount,
-                        ),
-                      );
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('ワークアウトを記録しました'),
-                            backgroundColor: Color(0xFFFFB74D), // Light Orange
-                          ),
-                        );
-                        Navigator.pop(context, 'fail');
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('エラー: $e'),
-                            backgroundColor: const Color(0xFFFFB74D),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFB74D), // Light Orange
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text('ワークアウト失敗', style: TextStyle(fontWeight: FontWeight.w900)),
-                ),
-              ),
-            ],
-          ),
+          const Divider(height: 24),
+          ...sets.asMap().entries.map((entry) {
+            final currentIndex = startIndex + entry.key;
+            if (currentIndex >= _setStatuses.length) return const SizedBox.shrink();
+            return _buildSetRow(currentIndex, entry.key + 1, entry.value);
+          }),
         ],
       ),
     );
+  }
+
+  Widget _buildSetRow(int globalIndex, int setNum, String detail) {
+    Widget detailWidget;
+    if (detail.contains('reps') && detail.contains('@')) {
+      final parts = detail.split('@');
+      detailWidget = Row(children: [Text(parts[0].trim(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF212121))), const SizedBox(width: 8), const Icon(Icons.fitness_center, color: Color(0xFF00ACC1), size: 14), const SizedBox(width: 8), Text(parts[1].trim(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF00ACC1)))]);
+    } else {
+      detailWidget = Text(detail, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF212121)));
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          _buildStatusIcons(globalIndex),
+          const SizedBox(width: 16),
+          Text('Set $setNum', style: const TextStyle(color: Color(0xFF424242), fontWeight: FontWeight.w900, fontSize: 14)),
+          const Spacer(),
+          detailWidget,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusIcons(int index) {
+    final status = _setStatuses[index];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(onTap: () => _updateSetStatus(index, status == true ? null : true), child: Icon(status == true ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, color: status == true ? const Color(0xFF00ACC1) : Colors.grey.shade300, size: 24)),
+        const SizedBox(width: 8),
+        GestureDetector(onTap: () => _updateSetStatus(index, status == false ? null : false), child: Icon(status == false ? Icons.cancel_rounded : Icons.radio_button_unchecked_rounded, color: status == false ? Colors.red : Colors.grey.shade300, size: 24)),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            const Text('セット結果', style: TextStyle(fontSize: 16, color: Color(0xFF424242), fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _buildSummaryContent(),
+            const SizedBox(height: 16),
+            TextButton(onPressed: _resetCounts, child: const Text('カウントをリセット', style: TextStyle(color: Color(0xFF00ACC1), fontWeight: FontWeight.bold, fontSize: 15))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryContent() {
+    final details = _todaysSchedule.workoutDetails ?? '';
+    List<Widget> rows = [];
+    if (details.contains(':') || details.contains('\n')) {
+      final lines = details.split('\n');
+      int idx = 0;
+      for (var line in lines) {
+        if (line.isEmpty || !line.contains(':')) continue;
+        final name = line.split(': ')[0];
+        final num = line.split(': ')[1].split(', ').length;
+        final success = _setStatuses.sublist(idx, (idx + num).clamp(0, _setStatuses.length)).where((s) => s == true).length;
+        final fail = _setStatuses.sublist(idx, (idx + num).clamp(0, _setStatuses.length)).where((s) => s == false).length;
+        rows.add(_buildSummaryRow(name, success, fail));
+        idx += num;
+      }
+    } else {
+      final success = _setStatuses.where((s) => s == true).length;
+      final fail = _setStatuses.where((s) => s == false).length;
+      rows.add(_buildSummaryRow(_todaysSchedule.menuTitle, success, fail));
+    }
+    return Column(children: rows);
+  }
+
+  Widget _buildSummaryRow(String name, int success, int fail) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF212121)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 12),
+          _buildSmallCountChip('成功', success, const Color(0xFF00ACC1)),
+          const SizedBox(width: 8),
+          _buildSmallCountChip('失敗', fail, Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallCountChip(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)), const SizedBox(width: 6), Text('$count', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: color))]),
+    );
+  }
+
+  Widget _buildTimerCard() {
+    final isRunning = _stopwatch.isRunning;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            const Text('レストタイマー', style: TextStyle(fontSize: 14, color: Color(0xFF424242), fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(_elapsedTime, style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w300, color: Color(0xFF424242), fontFamily: 'monospace')),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton(
+                  onPressed: isRunning ? _stopStopwatch : _startStopwatch,
+                  style: OutlinedButton.styleFrom(foregroundColor: isRunning ? Colors.orange.shade700 : const Color(0xFF00ACC1), side: BorderSide(color: isRunning ? Colors.orange.shade700 : const Color(0xFF00ACC1))),
+                  child: Text(isRunning ? 'ストップ' : 'スタート'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton(onPressed: _resetStopwatch, style: OutlinedButton.styleFrom(foregroundColor: Colors.grey.shade600, side: BorderSide(color: Colors.grey.shade400)), child: const Text('リセット')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompleteButton() {
+    return ElevatedButton(
+      onPressed: () async {
+        try {
+          await _apiService.completeSchedule(_todaysSchedule.id);
+          final log = WorkoutLog(
+            completedDate: DateTime.now(),
+            menuTitle: _todaysSchedule.menuTitle,
+            workoutDetails: _todaysSchedule.workoutDetails,
+            sessionTitle: _todaysSchedule.sessionTitle,
+            successCount: _setStatuses.where((s) => s == true).length,
+            failCount: _setStatuses.where((s) => s == false).length,
+          );
+          await _apiService.addLog(log);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ワークアウト完了！ 🎉'), backgroundColor: Color(0xFF00ACC1)));
+            Navigator.pop(context, 'success');
+          }
+        } catch (e) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red));
+        }
+      },
+      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00ACC1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      child: const Text('ワークアウト完了', style: TextStyle(fontWeight: FontWeight.bold)),
+    );
+  }
+}
+
+class _buildCountDisplay extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _buildCountDisplay(this.label, this.count, this.color);
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [Text('$count', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: color)), const SizedBox(height: 2), Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF424242), fontWeight: FontWeight.bold))]);
   }
 }

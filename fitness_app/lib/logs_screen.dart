@@ -98,16 +98,7 @@ class _LogsScreenState extends State<LogsScreen> {
   }
 
   Color _getMenuColor(String menuTitle) {
-    switch (menuTitle) {
-      case 'Smolov Jr.':
-        return const Color(0xFFFFB74D); // Light Orange
-      case '10x10':
-        return const Color(0xFF81C784); // Light Green
-      case '5/3/1':
-        return const Color(0xFFBA68C8); // Light Purple
-      default:
-        return Colors.grey;
-    }
+    return const Color(0xFF00ACC1); // Default to Cyan
   }
 
   @override
@@ -122,116 +113,141 @@ class _LogsScreenState extends State<LogsScreen> {
       onRefresh: _loadLogs,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // カレンダー
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: TableCalendar(
-                  firstDay: DateTime.utc(2020, 1, 1),
-                  lastDay: DateTime.utc(2030, 12, 31),
-                  focusedDay: _focusedDay,
-                  calendarFormat: _calendarFormat,
-                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                  onDaySelected: (selectedDay, focusedDay) {
-                    setState(() {
-                      _selectedDay = selectedDay;
-                      _focusedDay = focusedDay;
-                    });
-                  },
-                  eventLoader: (day) => _getLogsForDay(day),
-                  onFormatChanged: (format) {
-                    setState(() {
-                      _calendarFormat = format;
-                    });
-                  },
-                  onPageChanged: (focusedDay) {
-                    _focusedDay = focusedDay;
-                  },
-                  headerStyle: HeaderStyle(
-                    titleCentered: true,
-                    formatButtonVisible: false,
-                    titleTextStyle: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF424242),
-                    ),
-                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.grey.shade400),
-                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            // Calendar Header Section
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF26C6DA), Color(0xFF00ACC1)],
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
                   ),
-                  calendarStyle: CalendarStyle(
-                    todayDecoration: BoxDecoration(
-                      color: const Color(0xFF81C784).withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    selectedDecoration: const BoxDecoration(
-                      color: Color(0xFF81C784),
-                      shape: BoxShape.circle,
-                    ),
-                    todayTextStyle: const TextStyle(color: Color(0xFF424242), fontWeight: FontWeight.bold),
-                    markerDecoration: const BoxDecoration(
-                      color: Color(0xFFBA68C8), // Light Purple markers
-                      shape: BoxShape.circle,
-                    ),
-                    markerSize: 6,
+                ],
+              ),
+              child: TableCalendar(
+                firstDay: DateTime.utc(2020, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: _focusedDay,
+                calendarFormat: _calendarFormat,
+                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                onDaySelected: (selectedDay, focusedDay) {
+                  setState(() {
+                    _selectedDay = selectedDay;
+                    _focusedDay = focusedDay;
+                  });
+                },
+                eventLoader: (day) => _getLogsForDay(day),
+                onFormatChanged: (format) {
+                  setState(() {
+                    _calendarFormat = format;
+                  });
+                },
+                onPageChanged: (focusedDay) {
+                  _focusedDay = focusedDay;
+                },
+                headerStyle: const HeaderStyle(
+                  titleCentered: true,
+                  formatButtonVisible: false,
+                  titleTextStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
+                  rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+                ),
+                daysOfWeekStyle: const DaysOfWeekStyle(
+                  weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                  weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                ),
+                calendarStyle: const CalendarStyle(
+                  defaultTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                  todayDecoration: BoxDecoration(
+                    color: Colors.white30,
+                    shape: BoxShape.circle,
+                  ),
+                  todayTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  selectedDecoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  selectedTextStyle: TextStyle(color: Color(0xFF00ACC1), fontWeight: FontWeight.bold),
+                  markerDecoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             // 選択日のログ
-            if (_selectedDay != null) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat('yyyy/MM/dd').format(_selectedDay!),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+            if (_selectedDay != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          DateFormat('yyyy/MM/dd').format(_selectedDay!),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                                          if (selectedDayLogs.isNotEmpty)
+                                            TextButton.icon(
+                                              onPressed: () => _deleteLogsForDay(_selectedDay!),
+                                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                                              label: const Text('削除', style: TextStyle(color: Colors.red)),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: Colors.red,
+                                              ),
+                                            ),                      ],
                     ),
-                  ),
-                  if (selectedDayLogs.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () => _deleteLogsForDay(_selectedDay!),
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('削除'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red.shade700,
-                      ),
-                    ),
-                ],
+                    const SizedBox(height: 8),
+                    if (selectedDayLogs.isEmpty)
+                      Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Center(
+                            child: Text(
+                              'この日のログはありません',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ...selectedDayLogs.map((log) => _buildLogCard(log)),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              if (selectedDayLogs.isEmpty)
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  child: const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Center(
-                      child: Text(
-                        'この日のログはありません',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                )
-              else
-                ...selectedDayLogs.map((log) => _buildLogCard(log)),
-            ],
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -244,72 +260,147 @@ class _LogsScreenState extends State<LogsScreen> {
     final successCount = log.successCount ?? 0;
     final failCount = log.failCount ?? 0;
     final totalCount = successCount + failCount;
-    final menuColor = _getMenuColor(menuTitle);
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // メニュー名バッジ
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: menuColor,
-                borderRadius: BorderRadius.circular(4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // 左側のアクセントバー
+              Container(
+                width: 6,
+                color: const Color(0xFF00ACC1),
               ),
-              child: Text(
-                menuTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(18.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              menuTitle,
+                              style: const TextStyle(
+                                fontSize: 18, // Increased
+                                fontWeight: FontWeight.w900, // Bolder
+                                color: Color(0xFF212121), // Darker
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // ワークアウト詳細
+                      if (workoutDetails != null && workoutDetails.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.fitness_center, size: 18, color: Color(0xFF424242)), // Darker icon
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                workoutDetails,
+                                style: const TextStyle(
+                                  fontSize: 16, // Increased
+                                  color: Color(0xFF424242), // Darker
+                                  fontWeight: FontWeight.w900, // Bolder
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      // 成功/失敗カウント
+                      if (totalCount > 0) ...[
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildCountChip('成功', successCount, const Color(0xFF00ACC1)),
+                            _buildCountChip('失敗', failCount, Colors.red),
+                            _buildCountChip('合計', totalCount, Colors.blueGrey),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-
-            // ワークアウト詳細
-            if (workoutDetails != null && workoutDetails.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.fitness_center, size: 18, color: Colors.grey.shade600),
-                  const SizedBox(width: 8),
-                  Text(
-                    workoutDetails,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+              // 削除ボタン (Progressページと同じスタイル)
+              Material(
+                color: Colors.red.shade50,
+                child: InkWell(
+                  onTap: () => _confirmDeleteLog(log),
+                  child: Container(
+                    width: 56,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
                   ),
-                ],
+                ),
               ),
             ],
-
-            // 成功/失敗カウント
-            if (totalCount > 0) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildCountChip('成功', successCount, Colors.green.shade700),
-                  const SizedBox(width: 8),
-                  _buildCountChip('失敗', failCount, Colors.red.shade700),
-                  const SizedBox(width: 8),
-                  _buildCountChip('合計', totalCount, Colors.blueGrey),
-                ],
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteLog(WorkoutLog log) async {
+    final bool? result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ログの削除', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('このログを削除してもよろしいですか？', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && log.id != null) {
+      try {
+        await _apiService.deleteLog(log.id!);
+        _loadLogs();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ログを削除しました'), backgroundColor: Color(0xFF00ACC1)),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('削除に失敗しました: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildCountChip(String label, int count, Color color) {
@@ -327,6 +418,7 @@ class _LogsScreenState extends State<LogsScreen> {
             style: TextStyle(
               fontSize: 12,
               color: color,
+              fontWeight: FontWeight.w900, // Bolder
             ),
           ),
           const SizedBox(width: 4),
@@ -334,7 +426,7 @@ class _LogsScreenState extends State<LogsScreen> {
             '$count',
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w900, // Bolder
               color: color,
             ),
           ),

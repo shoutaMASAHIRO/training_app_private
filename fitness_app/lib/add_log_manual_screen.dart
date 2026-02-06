@@ -32,18 +32,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
   ];
 
   Color _getExerciseColor(String? exercise) {
-    switch (exercise) {
-      case 'Benchpress':
-        return Colors.blue.shade600;
-      case 'Squat':
-        return Colors.orange.shade700;
-      case 'Weighted Pullup':
-        return Colors.green.shade600;
-      case 'Bulgarian Split Squat':
-        return Colors.teal.shade600;
-      default:
-        return Colors.purple.shade600;
-    }
+    return const Color(0xFF00ACC1); // Default to Cyan
   }
 
   @override
@@ -142,7 +131,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('記録を保存しました'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00ACC1),
           ),
         );
         Navigator.pop(context, true);
@@ -179,11 +168,18 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ヘッダー説明カード
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.grey.shade300),
+                border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -204,7 +200,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                         children: [
                           const Text(
                             '実績の記録',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -222,17 +218,31 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
             const SizedBox(height: 16),
 
             // 日付選択カード
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade300),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today, color: Colors.grey.shade600, size: 20),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.calendar_today, color: Color(0xFF00ACC1), size: 20),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -240,18 +250,22 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                         children: [
                           Text(
                             '日付',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             DateFormat('yyyy年MM月dd日 (E)', 'ja').format(_selectedDate),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                           ),
                         ],
                       ),
                     ),
                     TextButton(
                       onPressed: _selectDate,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF00ACC1),
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       child: const Text('変更'),
                     ),
                   ],
@@ -261,11 +275,18 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
             const SizedBox(height: 12),
 
             // 種目選択カード
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade300),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -278,7 +299,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                         const SizedBox(width: 8),
                         const Text(
                           '種目名',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                         ),
                       ],
                     ),
@@ -291,14 +312,11 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                         hintText: '種目を選択してください',
                         hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                        fillColor: Colors.grey.shade50,
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1.5),
-                        ),
+                        fillColor: Colors.grey[100],
+                        filled: true,
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(color: Color(0xFF81C784), width: 2),
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
                         ),
                       ),
                       items: _exerciseOptions.map((String value) {
@@ -315,9 +333,9 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                           _exerciseNameController.text = newValue ?? '';
                         });
                       },
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF81C784)),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00ACC1)),
                       dropdownColor: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ],
                 ),
@@ -326,11 +344,18 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
             const SizedBox(height: 12),
 
             // 重量・REP入力カード
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade300),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -343,7 +368,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                         const SizedBox(width: 8),
                         const Text(
                           '達成重量 or 最大rep',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                         ),
                       ],
                     ),
@@ -357,15 +382,17 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                     TextField(
                       controller: _weightController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                       decoration: InputDecoration(
                         hintText: '0.0',
                         suffixText: 'kg',
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(color: themeColor, width: 2),
                         ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
                       ),
                     ),
                     const Padding(
@@ -384,34 +411,38 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                           child: TextField(
                             controller: _maxRepsWeightController,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                             decoration: InputDecoration(
                               hintText: '重量',
                               suffixText: 'kg',
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(color: themeColor, width: 2),
                               ),
+                              filled: true,
+                              fillColor: Colors.grey[100],
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Text('x'),
+                        const Text('x', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
                             controller: _maxRepsCountController,
                             keyboardType: TextInputType.number,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                             decoration: InputDecoration(
                               hintText: '回数',
                               suffixText: 'reps',
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(color: themeColor, width: 2),
                               ),
+                              filled: true,
+                              fillColor: Colors.grey[100],
                             ),
                           ),
                         ),
@@ -429,10 +460,10 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveLog,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF81C784), // Light Green
+                  backgroundColor: const Color(0xFF00ACC1), // Cyan
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 0,
                 ),
@@ -449,7 +480,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                           SizedBox(width: 10),
                           Text(
                             '実績を保存',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),

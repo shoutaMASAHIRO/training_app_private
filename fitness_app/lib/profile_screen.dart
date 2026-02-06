@@ -8,7 +8,7 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: const Color(0xFF00ACC1),
       ),
       body: const ProfileTab(), // ✅ reuse tab content
     );
@@ -57,7 +57,7 @@ class ProfileTab extends StatelessWidget {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: const Color(0xFF00ACC1),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 40,
                   vertical: 15,

@@ -160,6 +160,63 @@ class DatabaseService {
     }
   }
 
+  /// 10x10プログラムの次回の重量を調整する
+  Future<void> adjustNext10x10Workout(
+      WorkoutSchedule completedSchedule, bool wasSuccess) async {
+    try {
+      final allSchedules = await getSchedules();
+      allSchedules.sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
+
+      final remainingSchedules = allSchedules
+          .where((s) =>
+              s.menuTitle == '10x10' &&
+              !s.isCompleted &&
+              s.scheduledDate.isAfter(completedSchedule.scheduledDate))
+          .toList();
+
+      if (remainingSchedules.isEmpty) return;
+
+      final details = completedSchedule.workoutDetails;
+      double currentWeight = 0;
+      if (details != null && details.contains('@')) {
+        final weightString =
+            details.split('@')[1].trim().split('kg')[0].trim();
+        currentWeight = double.tryParse(weightString) ?? 0;
+      }
+
+      if (currentWeight <= 0) return;
+
+      final List<WorkoutSchedule> updatedSchedules = [];
+      for (int i = 0; i < remainingSchedules.length; i++) {
+        final schedule = remainingSchedules[i];
+        double newWeight;
+        if (wasSuccess) {
+          newWeight = currentWeight + ((i + 1) * 2.5);
+        } else {
+          newWeight = currentWeight + (i * 2.5);
+        }
+
+        updatedSchedules.add(WorkoutSchedule(
+          id: 0,
+          scheduledDate: schedule.scheduledDate,
+          isCompleted: false,
+          menuTitle: schedule.menuTitle,
+          menuDifficulty: schedule.menuDifficulty,
+          workoutDetails: '10x10 @ ${newWeight.toStringAsFixed(1)}kg',
+          sessionTitle: schedule.sessionTitle,
+        ));
+      }
+
+      for (final schedule in remainingSchedules) {
+        await deleteSchedule(schedule.id);
+      }
+      await addSchedules(updatedSchedules);
+    } catch (e) {
+      debugPrint('[DB] Error adjusting 10x10 schedules: $e');
+      rethrow;
+    }
+  }
+
   /// スケジュール削除
   Future<void> deleteSchedule(int id) async {
     try {
