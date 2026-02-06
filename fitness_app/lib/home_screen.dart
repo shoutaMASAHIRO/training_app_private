@@ -1890,28 +1890,49 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         !e['name'].toString().toLowerCase().contains('deadlift')
       ).toList();
 
-      for (int week = 0; week < 12; week++) {
-        for (int dayIndex = 0; dayIndex < 3; dayIndex++) {
-          final scheduledDate = _startDate.add(Duration(days: (week * 7) + (dayIndex * 2)));
-          final workoutIndex = (week * 3) + dayIndex;
-          final isWorkoutA = workoutIndex % 2 == 0;
-          StringBuffer details = StringBuffer();
+      final sortedDays = List<int>.from(_selectedDays)..sort();
+      if (sortedDays.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('曜日を少なくとも1つ選択してください')));
+        }
+        return;
+      }
 
-          for (var ex in squats) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + workoutIndex * 2.5).toStringAsFixed(1)}kg\n');
-          if (isWorkoutA) {
-            final aCount = (workoutIndex + 1) ~/ 2;
-            for (var ex in benches) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
-            for (var ex in rows) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
-          } else {
-            final bCount = workoutIndex ~/ 2;
-            for (var ex in ohps) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + bCount * 2.5).toStringAsFixed(1)}kg\n');
-            for (var ex in deadlifts) details.write('${ex['name']}: 1x5 @ ${(weightsMap[ex['name']]! + bCount * 5.0).toStringAsFixed(1)}kg\n');
-          }
-          for (var ex in others) details.write('${ex['name']}: 3x10 @ ${((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
+      // Generate all valid workout dates chronologically
+      List<DateTime> workoutDates = [];
+      DateTime currentDate = _startDate;
+      int sessionsNeeded = 12 * sortedDays.length; // 12 weeks * days per week
+      
+      while (workoutDates.length < sessionsNeeded) {
+        if (sortedDays.contains(currentDate.weekday)) {
+          workoutDates.add(currentDate);
+        }
+        currentDate = currentDate.add(const Duration(days: 1));
+      }
 
-          if (details.isNotEmpty) {
-            schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: 'StrongLifts 5x5', menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}', workoutDetails: details.toString().trim(), sessionTitle: isWorkoutA ? 'Workout A' : 'Workout B'));
-          }
+      for (int i = 0; i < workoutDates.length; i++) {
+        final scheduledDate = workoutDates[i];
+        final week = i ~/ sortedDays.length;
+        final dayIndex = i % sortedDays.length; // 0-based index in the week's sessions
+        
+        final workoutIndex = i; // Sequential workout index
+        final isWorkoutA = workoutIndex % 2 == 0;
+        StringBuffer details = StringBuffer();
+
+        for (var ex in squats) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + workoutIndex * 2.5).toStringAsFixed(1)}kg\n');
+        if (isWorkoutA) {
+          final aCount = (workoutIndex + 1) ~/ 2;
+          for (var ex in benches) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
+          for (var ex in rows) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
+        } else {
+          final bCount = workoutIndex ~/ 2;
+          for (var ex in ohps) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + bCount * 2.5).toStringAsFixed(1)}kg\n');
+          for (var ex in deadlifts) details.write('${ex['name']}: 1x5 @ ${(weightsMap[ex['name']]! + bCount * 5.0).toStringAsFixed(1)}kg\n');
+        }
+        for (var ex in others) details.write('${ex['name']}: 3x10 @ ${((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
+
+        if (details.isNotEmpty) {
+          schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: 'StrongLifts 5x5', menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}', workoutDetails: details.toString().trim(), sessionTitle: isWorkoutA ? 'Workout A' : 'Workout B'));
         }
       }
       await _apiService.addSchedules(schedules);
@@ -1944,27 +1965,67 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       final presses = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('press') && !e['name'].toString().toLowerCase().contains('bench')).toList();
       final others = _programExercises.where((e) => !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') && !e['name'].toString().toLowerCase().contains('deadlift') && !e['name'].toString().toLowerCase().contains('press')).toList();
 
+      final sortedDays = List<int>.from(_selectedDays)..sort();
+      if (sortedDays.length < 3) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('テキサスメソッドには少なくとも3つの曜日を選択してください')));
+        }
+        return;
+      }
+
+      // Generate valid workout dates chronologically
+      // Texas Method requires fixed 3 days per week pattern. 
+      // If user selects 4 days, we only use the first 3 of them each week?
+      // Or do we just take the first 3 valid days found in a week?
+      // Logic: Iterate weeks. In each week, find the first 3 occurrences of sortedDays.
+      
       for (int week = 0; week < 8; week++) {
+        DateTime weekStartSearch = _startDate.add(Duration(days: week * 7));
+        List<DateTime> weekDates = [];
+        DateTime currentDate = weekStartSearch;
+        
+        // Find 3 valid days for this week
+        // Note: This naive +1 day loop ensures we find days in order starting from weekStartSearch.
+        // If weekStartSearch is Wed, and selected Mon, Wed, Fri:
+        // Wed(match), Thu, Fri(match), Sat, Sun, Mon(match next week.. wait)
+        // If we strictly follow "Week starts on _startDate", then:
+        // Day 1: Wed (Volume)
+        // Day 2: Fri (Recovery)
+        // Day 3: Mon (Intensity - but this is next calendar week).
+        // This is actually what we want if we treat "Week" as "7-day cycle starting from StartDate".
+        
+        int daysFound = 0;
+        while (daysFound < 3) {
+          if (sortedDays.contains(currentDate.weekday)) {
+            weekDates.add(currentDate);
+            daysFound++;
+          }
+          currentDate = currentDate.add(const Duration(days: 1));
+        }
+
         // Day 1: Volume
+        DateTime d1date = weekDates[0];
         StringBuffer vol = StringBuffer();
         for (var ex in squats) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
         for (var ex in benches) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
         for (var ex in presses) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
-        if (vol.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7))), isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Volume', workoutDetails: vol.toString().trim(), sessionTitle: 'Volume Day'));
+        if (vol.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d1date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Volume', workoutDetails: vol.toString().trim(), sessionTitle: 'Volume Day'));
 
         // Day 2: Recovery
+        DateTime d2date = weekDates[1];
         StringBuffer rec = StringBuffer();
         for (var ex in squats) rec.write('${ex['name']}: 2x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
         for (var ex in benches) rec.write('${ex['name']}: 3x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
-        if (rec.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + 2)), isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Recovery', workoutDetails: rec.toString().trim(), sessionTitle: 'Recovery Day'));
+        if (rec.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d2date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Recovery', workoutDetails: rec.toString().trim(), sessionTitle: 'Recovery Day'));
 
         // Day 3: Intensity
+        DateTime d3date = weekDates[2];
         StringBuffer intens = StringBuffer();
         for (var ex in squats) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
         for (var ex in benches) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
         for (var ex in presses) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
         for (var ex in deadlifts) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 5.0).toStringAsFixed(1)}kg\n');
-        if (intens.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + 4)), isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Intensity', workoutDetails: intens.toString().trim(), sessionTitle: 'Intensity Day'));
+        if (intens.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d3date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Intensity', workoutDetails: intens.toString().trim(), sessionTitle: 'Intensity Day'));
       }
       await _apiService.addSchedules(schedules);
       if (mounted) {
@@ -1995,11 +2056,43 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       final deadlifts = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('deadlift')).toList();
       final others = _programExercises.where((e) => !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') && !e['name'].toString().toLowerCase().contains('deadlift')).toList();
 
+      final sortedDays = List<int>.from(_selectedDays)..sort();
+      if (sortedDays.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('曜日を少なくとも1つ選択してください')));
+        }
+        return;
+      }
+
+      // Generate a pool of valid workout dates starting from _startDate
+      // This pool will be consumed by the programs session by session.
+      List<DateTime> validDatesPool = [];
+      DateTime currentDate = _startDate;
+      int maxSessionsNeeded = 6 * 5; // Max case (Candito 6 weeks * max 5 days) + buffer
+      // 60 days buffer is usually enough
+      
+      while (validDatesPool.length < maxSessionsNeeded) {
+        if (sortedDays.contains(currentDate.weekday)) {
+          validDatesPool.add(currentDate);
+        }
+        currentDate = currentDate.add(const Duration(days: 1));
+      }
+
       if (programName == 'Westside Conjugate') {
-        final dayOffsets = [0, 1, 3, 4];
         final sessionTitles = ['Max Effort Lower', 'Max Effort Upper', 'Dynamic Effort Lower', 'Dynamic Effort Upper'];
+        if (sortedDays.length < 4) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ウエストサイドには少なくとも4つの曜日を選択してください')));
+          return;
+        }
         for (int week = 0; week < 4; week++) {
           for (int i = 0; i < 4; i++) {
+            // Use 4 sessions per week from the pool
+            // Week 0: index 0, 1, 2, 3
+            // Week 1: index 4, 5, 6, 7
+            int poolIndex = (week * 4) + i;
+            if (poolIndex >= validDatesPool.length) break;
+            DateTime scheduledDate = validDatesPool[poolIndex];
+
             StringBuffer details = StringBuffer();
             if (i == 0) {
               for (var ex in squats) details.write('${ex['name']} Variation: 1-3 reps @ MAX\n');
@@ -2013,14 +2106,18 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               for (var ex in benches) details.write('${ex['name']}: 9x3 @ ${(weightsMap[ex['name']]! * 0.55).toStringAsFixed(1)}kg\n');
             }
             for (var ex in others) details.write('${ex['name']}: 3x10-15 @ ${(weightsMap[ex['name']]! * 0.5).toStringAsFixed(1)}kg\n');
-            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + dayOffsets[i])), isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1}', workoutDetails: details.toString().trim(), sessionTitle: sessionTitles[i]));
+            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1}', workoutDetails: details.toString().trim(), sessionTitle: sessionTitles[i]));
           }
         }
       } else if (programName == 'Candito 6-Week') {
         final weekFreqs = [5, 5, 4, 4, 3, 1]; 
+        int datePoolIndex = 0;
         for (int week = 0; week < 6; week++) {
           int freq = weekFreqs[week];
           for (int day = 0; day < freq; day++) {
+             if (datePoolIndex >= validDatesPool.length) break;
+            DateTime scheduledDate = validDatesPool[datePoolIndex++];
+            
             StringBuffer details = StringBuffer();
             double intensity = (week < 2) ? 0.8 : ((week < 4) ? 0.9 : 0.95);
             String reps = (week < 2) ? '4x6' : ((week < 4) ? '3x3' : '1x1-4');
@@ -2028,18 +2125,27 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             for (var ex in benches) details.write('${ex['name']}: $reps @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
             for (var ex in deadlifts) if (day % 2 == 1) details.write('${ex['name']}: 2x6 @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
             for (var ex in others) details.write('${ex['name']}: 3x10 @ ${(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
-            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + (day * 2))), isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Day ${day + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'Cycle Day'));
+            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Day ${day + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'Cycle Day'));
           }
         }
       } else if (programName == 'Sheiko') {
+        if (sortedDays.length < 3) {
+           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sheikoには少なくとも3つの曜日を選択してください')));
+           return;
+        }
         for (int week = 0; week < 4; week++) {
           for (int i = 0; i < 3; i++) {
+            // Use 3 sessions per week from the pool
+            int poolIndex = (week * 3) + i;
+             if (poolIndex >= validDatesPool.length) break;
+            DateTime scheduledDate = validDatesPool[poolIndex];
+
             StringBuffer details = StringBuffer();
             for (var ex in squats) details.write('${ex['name']}: 5x3 @ ${(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
             for (var ex in benches) details.write('${ex['name']}: 5x3 @ ${(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
             for (var ex in deadlifts) if (i == 1) details.write('${ex['name']}: 4x2 @ ${(weightsMap[ex['name']]! * 0.85).toStringAsFixed(1)}kg\n');
             for (var ex in others) details.write('${ex['name']}: 4x8 @ ${(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
-            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: _startDate.add(Duration(days: (week * 7) + (i * 2))), isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Session ${i + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'High Volume Session'));
+            if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Session ${i + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'High Volume Session'));
           }
         }
       }
@@ -2166,27 +2272,30 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         return;
       }
 
+      // Generate pool of valid workout dates chronologically
+      List<DateTime> validDatesPool = [];
+      DateTime currentDate = startDate;
+      // 4 weeks * 7 days/week (max) to be safe, though 5/3/1 is just 4 weeks.
+      // 4 weeks * sortedDays.length is exact needed.
+      int maxSessionsNeeded = 4 * sortedDays.length;
+      
+      while (validDatesPool.length < maxSessionsNeeded) {
+        if (sortedDays.contains(currentDate.weekday)) {
+          validDatesPool.add(currentDate);
+        }
+        currentDate = currentDate.add(const Duration(days: 1));
+      }
+
       // 4週間のサイクルを登録
+      int poolIndex = 0;
       for (int week = 0; week < 4; week++) {
         final weekData = _calculatedProgram![week];
         final dayData = (weekData['days'] as List).first;
         
         for (int i = 0; i < sortedDays.length; i++) {
-          final targetWeekday = sortedDays[i];
+          if (poolIndex >= validDatesPool.length) break;
+          final scheduledDate = validDatesPool[poolIndex++];
           
-          // Calculate the date for this specific weekday in the given week
-          // Week 0 is the starting week. We find the next occurrence of targetWeekday
-          // starting from startDate + (week * 7)
-          DateTime weekBase = startDate.add(Duration(days: week * 7));
-          
-          // Adjust to the specific weekday
-          // If startDate is Monday(1) and target is Wednesday(3), diff is 2.
-          // We need to be careful if targetWeekday is "before" startDate's weekday.
-          int dayDiff = targetWeekday - weekBase.weekday;
-          if (dayDiff < 0) dayDiff += 7;
-          
-          final scheduledDate = weekBase.add(Duration(days: dayDiff));
-
           final workoutDetails =
               '${dayData['reps']}x${dayData['sets']} @ ${(dayData['weight'] as double).toStringAsFixed(1)}kg';
 
@@ -2659,6 +2768,41 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               _buildStartDateCard(),
               const SizedBox(height: 12),
               
+              // 曜日選択セクション
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '実行する曜日を選択 (週3回推奨)',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildWeekdayButton(1, '月'),
+                          _buildWeekdayButton(2, '火'),
+                          _buildWeekdayButton(3, '水'),
+                          _buildWeekdayButton(4, '木'),
+                          _buildWeekdayButton(5, '金'),
+                          _buildWeekdayButton(6, '土'),
+                          _buildWeekdayButton(7, '日'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
               // 種目・重量入力エリア (入力用)
               Card(
                 elevation: 0,
@@ -2813,6 +2957,41 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               _buildProgramDescriptionCard(widget.workoutName, '中級者向け: 週3回の強度変化プログラム'),
               const SizedBox(height: 12),
               _buildStartDateCard(),
+              const SizedBox(height: 12),
+
+              // 曜日選択セクション
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '実行する曜日を選択 (週3回推奨)',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildWeekdayButton(1, '月'),
+                          _buildWeekdayButton(2, '火'),
+                          _buildWeekdayButton(3, '水'),
+                          _buildWeekdayButton(4, '木'),
+                          _buildWeekdayButton(5, '金'),
+                          _buildWeekdayButton(6, '土'),
+                          _buildWeekdayButton(7, '日'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               
               // 種目・重量入力エリア (入力用)
@@ -2970,6 +3149,41 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               _buildProgramDescriptionCard(widget.workoutName, '上級者向けプログラムテンプレート'),
               const SizedBox(height: 12),
               _buildStartDateCard(),
+              const SizedBox(height: 12),
+
+              // 曜日選択セクション
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '実行する曜日を選択',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildWeekdayButton(1, '月'),
+                          _buildWeekdayButton(2, '火'),
+                          _buildWeekdayButton(3, '水'),
+                          _buildWeekdayButton(4, '木'),
+                          _buildWeekdayButton(5, '金'),
+                          _buildWeekdayButton(6, '土'),
+                          _buildWeekdayButton(7, '日'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               
               // 種目・重量入力エリア (入力用)
