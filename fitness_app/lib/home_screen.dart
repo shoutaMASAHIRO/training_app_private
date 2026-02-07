@@ -754,13 +754,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 if (!isCustom && schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      schedule.workoutDetails!,
-                                      style: const TextStyle(
-                                        fontSize: 14, // Increased
-                                        color: Color(0xFF424242), // Darker
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.monitor_weight_outlined, size: 14, color: Color(0xFF00ACC1)),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            schedule.workoutDetails!
+                                                .replaceAll('@', '')
+                                                .replaceAll('+', '～限界'),
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF424242),
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                               ],
@@ -778,6 +788,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               final parts = line.split(': ');
                               final exercise = parts[0];
                               final setsStr = parts.length > 1 ? parts[1] : '';
+                              // カスタム詳細内の「kg」部分などの表示も統一する
                               final sets = setsStr.split(', ');
 
                               return Container(
@@ -795,36 +806,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Text(
                                       exercise,
                                       style: const TextStyle(
-                                        fontSize: 14, // Increased
-                                        fontWeight: FontWeight.w900, // Bolder
-                                        color: Color(0xFF212121), // Darker
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF212121),
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    ...sets.map((setInfo) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 5,
-                                            height: 5,
-                                            decoration: const BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: Colors.black26, // Darker dot
+                                    ...sets.map((setInfo) {
+                                      // @ があれば置換
+                                      final displayInfo = setInfo.replaceAll('@', '').trim();
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.monitor_weight_outlined, size: 12, color: Colors.black26),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              displayInfo,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF424242),
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            setInfo,
-                                            style: const TextStyle(
-                                              fontSize: 13, // Increased
-                                              color: Color(0xFF424242), // Darker
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )).toList(),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
                                   ],
                                 ),
                               );
@@ -4154,42 +4162,60 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   }
 
   Widget _buildExerciseNameField(Color themeColor) {
-    return DropdownButtonFormField<String>(
-      value: _exerciseKindController.text.isNotEmpty && _exerciseOptions.contains(_exerciseKindController.text)
-          ? _exerciseKindController.text
-          : null,
-      decoration: InputDecoration(
-        hintText: '種目を選択してください',
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        fillColor: Colors.grey.shade50,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: themeColor, width: 2),
-        ),
-      ),
-      items: _exerciseOptions.map((String value) {
-        return DropdownMenuItem<String>(
-          value: value,
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-        );
-      }).toList(),
-      onChanged: (String? newValue) {
-        setState(() {
-          _exerciseKindController.text = newValue ?? '';
-        });
-      },
-      icon: Icon(Icons.keyboard_arrow_down_rounded, color: themeColor),
-      dropdownColor: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+        ],
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _exerciseKindController.text.isNotEmpty && _exerciseOptions.contains(_exerciseKindController.text)
+            ? _exerciseKindController.text
+            : null,
+        decoration: InputDecoration(
+          hintText: '種目を選択してください',
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          fillColor: Colors.white,
+          filled: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide(color: themeColor, width: 2),
+          ),
+        ),
+        items: _exerciseOptions.map((String value) {
+          return DropdownMenuItem<String>(
+            value: value,
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+            ),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _exerciseKindController.text = newValue ?? '';
+          });
+        },
+        icon: Icon(Icons.keyboard_arrow_down_rounded, color: themeColor),
+        dropdownColor: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+      ),
     );
   }
 
@@ -4223,32 +4249,49 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DropdownButtonFormField<String>(
-                        value: _exerciseOptions.contains(ex['name']) ? ex['name'] : _exerciseOptions.first,
-                        decoration: InputDecoration(
-                          labelText: '種目',
-                          labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
-                          floatingLabelBehavior: FloatingLabelBehavior.always,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          fillColor: Colors.grey[100],
-                          filled: true,
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: themeColor, width: 2),
-                          ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: themeColor.withValues(alpha: 0.05),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        items: _exerciseOptions.map((e) => DropdownMenuItem(
-                          value: e, 
-                          child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
-                        )).toList(),
-                        onChanged: (val) => setState(() => ex['name'] = val),
-                        icon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
-                        dropdownColor: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        child: DropdownButtonFormField<String>(
+                          value: _exerciseOptions.contains(ex['name']) ? ex['name'] : _exerciseOptions.first,
+                          decoration: InputDecoration(
+                            labelText: '種目',
+                            labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                            fillColor: Colors.white,
+                            filled: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: themeColor, width: 2),
+                            ),
+                          ),
+                          items: _exerciseOptions.map((e) => DropdownMenuItem(
+                            value: e, 
+                            child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
+                          )).toList(),
+                          onChanged: (val) => setState(() => ex['name'] = val),
+                          icon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
+                          dropdownColor: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -4803,22 +4846,34 @@ class _ScheduleCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isToday ? const Color(0xFFF5F5F5) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Colors.grey.shade300,
-          width: 1.2,
+          color: const Color(0xFF00ACC1).withValues(alpha: 0.15),
+          width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 左側のアクセントバー (今日ならオレンジ、それ以外はシアン)
+              Container(
+                width: 6,
+                color: isToday ? Colors.deepOrangeAccent : const Color(0xFF00ACC1),
+              ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -4826,27 +4881,27 @@ class _ScheduleCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            DateFormat.MMMEd().format(schedule.scheduledDate),
-                            style: const TextStyle(
-                              color: Color(0xFF212121),
+                            DateFormat('M/d (E)', 'ja').format(schedule.scheduledDate),
+                            style: TextStyle(
+                              color: isToday ? Colors.deepOrangeAccent : const Color(0xFF212121),
                               fontWeight: FontWeight.w900,
                               fontSize: 16,
                             ),
                           ),
                           if (isToday)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF00ACC1),
-                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.deepOrangeAccent.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Text(
                                 'TODAY',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  letterSpacing: 1.2,
+                                  color: Colors.deepOrangeAccent,
+                                  letterSpacing: 1.0,
                                 ),
                               ),
                             ),
@@ -4856,40 +4911,53 @@ class _ScheduleCard extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: menuColor,
-                              borderRadius: BorderRadius.circular(6),
+                              color: menuColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: menuColor.withValues(alpha: 0.2)),
                             ),
                             child: Text(
                               schedule.menuTitle,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: menuColor,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
+                                letterSpacing: -0.2,
                               ),
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      Text(
+                        schedule.sessionTitle ?? schedule.menuTitle,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF212121),
+                        ),
+                      ),
                       if (schedule.workoutDetails != null && schedule.workoutDetails!.isNotEmpty) ...[
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         // 有名プログラムも標準デザインを使用するようにホワイトリストに追加
                         (schedule.menuDifficulty == 'Custom' || !['Smolov Jr.', '10x10', '5/3/1', 'StrongLifts 5x5', 'Texas Method', 'Candito 6-Week', 'Sheiko', 'Westside Conjugate'].contains(schedule.menuTitle))
                             ? buildCustomDetails(schedule.workoutDetails!)
                             : Padding(
-                                padding: const EdgeInsets.only(top: 12.0),
+                                padding: const EdgeInsets.only(top: 8.0),
                                 child: Row(
                                   children: [
-                                    Icon(_getExerciseIcon(schedule.sessionTitle ?? ''), size: 20, color: const Color(0xFF00ACC1)),
+                                    Icon(Icons.monitor_weight_outlined, size: 18, color: const Color(0xFF00ACC1)),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        schedule.workoutDetails!,
+                                        schedule.workoutDetails!
+                                            .replaceAll('@', '') // アットマークを削除
+                                            .replaceAll('+', '～限界'),
                                         style: const TextStyle(
-                                          fontSize: 17,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.w900,
-                                          color: Color(0xFF212121),
+                                          color: Color(0xFF424242),
                                         ),
                                       ),
                                     ),
@@ -4901,7 +4969,7 @@ class _ScheduleCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // 削除ボタン (統一デザイン)
+              // 削除ボタン
               Material(
                 color: Colors.red.shade50,
                 child: InkWell(

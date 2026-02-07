@@ -369,11 +369,40 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           const SizedBox(height: 12),
                           ..._getEventsForDay(_selectedDay!).map((event) => _buildDayLogCard(event as WorkoutLog, theme)).toList(),
                           if (_getEventsForDay(_selectedDay!).isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16.0),
-                              child: Text(
-                                'この日の記録はありません',
-                                style: TextStyle(color: colorScheme.outline, fontSize: 13),
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: const Color(0xFF00ACC1).withValues(alpha: 0.15),
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.history_rounded, color: Colors.grey.shade300, size: 40),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'この日の記録はありません',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade500,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                         ],
@@ -381,7 +410,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     ),
                   ],
                   
-                  const Divider(height: 64, thickness: 0.5),
+                  const SizedBox(height: 32), // Dividerを削除し、セクション間の余白を確保
                   
                   Row(
                     children: [
@@ -390,12 +419,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       Text(
                         '種目別重量推移',
                         style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF424242),
                           letterSpacing: 0.5,
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12), // Dividerの代わりにある程度の余白を確保
                   
                   if (_availableExercises.isEmpty)
                     Padding(
@@ -420,51 +451,70 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   else ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedExercise,
-                                          decoration: InputDecoration(
-                                            labelText: '種目を選択',
-                                            labelStyle: const TextStyle(
-                                              color: Color(0xFF00ACC1),
-                                              fontWeight: FontWeight.w900,
-                                              fontSize: 13,
-                                              letterSpacing: 1.0,
-                                            ),
-                                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                                            fillColor: Colors.grey[100],
-                                            filled: true,
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(20),
-                                              borderSide: BorderSide.none,
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(20),
-                                              borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
-                                            ),
-                                          ),                        items: _availableExercises.map((exercise) {
-                          return DropdownMenuItem<String>(
-                            value: exercise,
-                            child: Text(
-                              exercise,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF424242),
-                                fontSize: 16,
-                              ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) _onExerciseSelected(value);
-                        },
-                        icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF00ACC1)),
-                        dropdownColor: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
+                          ],
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedExercise,
+                          decoration: InputDecoration(
+                            labelText: '種目を選択',
+                            labelStyle: const TextStyle(
+                              color: Color(0xFF00ACC1),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                              letterSpacing: 1.0,
+                            ),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                            fillColor: Colors.white,
+                            filled: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
+                            ),
+                          ),
+                          items: _availableExercises.map((exercise) {
+                            return DropdownMenuItem<String>(
+                              value: exercise,
+                              child: Text(
+                                exercise,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF424242),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value != null) _onExerciseSelected(value);
+                          },
+                          icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF00ACC1)),
+                          dropdownColor: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                       ),
-                    ),
+                    ), // ここでPaddingを閉じ、コンマを追加
                     const SizedBox(height: 8),
-                    if (_touchedIndex != null && _touchedIndex! < sortedDates.length) _buildSelectedPointCard(sortedDates, spots, colorScheme, theme),
+                    if (_touchedIndex != null && _touchedIndex! < sortedDates.length)
+                      _buildSelectedPointCard(sortedDates, spots, colorScheme, theme),
                     // Chart
                     Container(
                       height: 300,
@@ -905,52 +955,111 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final lastWeight = weights.last;
     final totalChange = lastWeight - firstWeight;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, top: 24, bottom: 16),
+          child: Text(
             '統計サマリー',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
               color: const Color(0xFF424242),
               letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 20),
+        ),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 1.5,
+          children: [
+            _buildStatTile('最小', '${minWeight.toStringAsFixed(1)}', 'kg', Icons.arrow_downward, const Color(0xFF00ACC1), theme),
+            _buildStatTile('最大', '${maxWeight.toStringAsFixed(1)}', 'kg', Icons.arrow_upward, const Color(0xFF00ACC1), theme),
+            _buildStatTile('平均', '${avgWeight.toStringAsFixed(1)}', 'kg', Icons.analytics_outlined, const Color(0xFF00ACC1), theme),
+            _buildStatTile(
+              '変化',
+              '${totalChange >= 0 ? '+' : ''}${totalChange.toStringAsFixed(1)}',
+              'kg',
+              totalChange >= 0 ? Icons.trending_up : Icons.trending_down,
+              const Color(0xFF00ACC1),
+              theme,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatTile(String label, String value, String unit, IconData icon, Color color, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.1), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStatItem('最小', '${minWeight.toStringAsFixed(1)}kg', Icons.arrow_downward, Colors.black45, theme),
-              _buildStatItem('最大', '${maxWeight.toStringAsFixed(1)}kg', Icons.arrow_upward, const Color(0xFF424242), theme),
-              _buildStatItem('平均', '${avgWeight.toStringAsFixed(1)}kg', Icons.analytics_outlined, Colors.black54, theme),
-              _buildStatItem(
-                '変化',
-                '${totalChange >= 0 ? '+' : ''}${totalChange.toStringAsFixed(1)}kg',
-                totalChange >= 0 ? Icons.trending_up : Icons.trending_down,
-                totalChange >= 0 ? const Color(0xFF424242) : Colors.black38,
-                theme,
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13, // 拡大
+                  fontWeight: FontWeight.w900, // より太く
+                  color: Colors.grey.shade700, // 少し濃く
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8), // パディング拡大
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 20), // 16から20に拡大
+              ),
+            ],
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 24, // 22から24に拡大
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF212121),
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: TextStyle(
+                  fontSize: 13, // 12から13に拡大
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade500, // 少し濃く
+                ),
               ),
             ],
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, IconData icon, Color color, ThemeData theme) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(height: 4),
-        Text(value, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurface.withAlpha((255 * 0.6).round()))),
-      ],
     );
   }
 }

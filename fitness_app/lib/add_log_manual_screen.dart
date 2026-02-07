@@ -304,38 +304,59 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: _exerciseNameController.text.isNotEmpty && _exerciseOptions.contains(_exerciseNameController.text)
-                          ? _exerciseNameController.text
-                          : null,
-                      decoration: InputDecoration(
-                        hintText: '種目を選択してください',
-                        hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                        fillColor: Colors.grey[100],
-                        filled: true,
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
-                        ),
-                      ),
-                      items: _exerciseOptions.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            value,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _exerciseNameController.text = newValue ?? '';
-                        });
-                      },
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00ACC1)),
-                      dropdownColor: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                        ],
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        value: _exerciseNameController.text.isNotEmpty && _exerciseOptions.contains(_exerciseNameController.text)
+                            ? _exerciseNameController.text
+                            : null,
+                        decoration: InputDecoration(
+                          hintText: '種目を選択してください',
+                          hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                          fillColor: Colors.white,
+                          filled: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
+                          ),
+                        ),
+                        items: _exerciseOptions.map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(
+                              value,
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _exerciseNameController.text = newValue ?? '';
+                          });
+                        },
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00ACC1)),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
                     ),
                   ],
                 ),

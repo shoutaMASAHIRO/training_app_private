@@ -317,28 +317,49 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DropdownButtonFormField<String>(
-                        value: ex['name'],
-                        decoration: InputDecoration(
-                          labelText: '種目',
-                          labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0),
-                          floatingLabelBehavior: FloatingLabelBehavior.always,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          fillColor: Colors.grey[100],
-                          filled: true,
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: themeColor, width: 2),
-                          ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: themeColor.withValues(alpha: 0.05),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        items: _exerciseOptions.map((e) => DropdownMenuItem(
-                          value: e, 
-                          child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
-                        )).toList(),
-                        onChanged: (val) => setState(() => ex['name'] = val),
-                        icon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
-                        dropdownColor: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                        child: DropdownButtonFormField<String>(
+                          value: ex['name'],
+                          decoration: InputDecoration(
+                            labelText: '種目',
+                            labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                            fillColor: Colors.white,
+                            filled: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: themeColor, width: 2),
+                            ),
+                          ),
+                          items: _exerciseOptions.map((e) => DropdownMenuItem(
+                            value: e, 
+                            child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
+                          )).toList(),
+                          onChanged: (val) => setState(() => ex['name'] = val),
+                          icon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
+                          dropdownColor: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Row(
