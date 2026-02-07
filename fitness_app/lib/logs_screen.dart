@@ -84,7 +84,10 @@ class _LogsScreenState extends State<LogsScreen> {
         await _loadLogs();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ログを削除しました')),
+            const SnackBar(
+              content: Text('ログを削除しました'),
+              backgroundColor: Color(0xFF00ACC1),
+            ),
           );
         }
       } catch (e) {
@@ -182,47 +185,47 @@ class _LogsScreenState extends State<LogsScreen> {
                     color: Colors.white12, // さらに控えめに
                     shape: BoxShape.circle,
                   ),
-                                                      todayTextStyle: TextStyle(
-                                                        color: Colors.orangeAccent,
-                                                        fontWeight: FontWeight.w900,
-                                                      ),
-                                                      selectedDecoration: BoxDecoration(
-                                                        color: Colors.transparent, // 塗りつぶしを透明に
-                                                        shape: BoxShape.circle,
-                                                        border: Border.fromBorderSide(
-                                                          BorderSide(color: Colors.white, width: 2), // 太めの白い枠線に変更
-                                                        ),
-                                                      ),
-                                                      selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                                                      markerDecoration: BoxDecoration(
-                                                        color: Colors.white,
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                    ),
-                                                    calendarBuilders: CalendarBuilders(
-                                                      selectedBuilder: (context, day, focusedDay) {
-                                                        final isToday = isSameDay(day, DateTime.now());
-                                                        return Center(
-                                                          child: Container(
-                                                            width: 32,
-                                                            height: 32,
-                                                            decoration: BoxDecoration(
-                                                              shape: BoxShape.circle,
-                                                              border: Border.all(color: Colors.white, width: 2),
-                                                            ),
-                                                            child: Center(
-                                                              child: Text(
-                                                                '${day.day}',
-                                                                style: TextStyle(
-                                                                  color: isToday ? Colors.orangeAccent : Colors.white,
-                                                                  fontWeight: FontWeight.w900,
-                                                                  fontSize: 13,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },                      markerBuilder: (context, day, events) {
+                                                                                                            todayTextStyle: const TextStyle(
+                                                                                                              color: Colors.deepOrangeAccent,
+                                                                                                              fontWeight: FontWeight.w900,
+                                                                                                            ),
+                                                                                                            selectedDecoration: BoxDecoration(
+                                                                                                              color: Colors.transparent, // 塗りつぶしを透明に
+                                                                                                              shape: BoxShape.circle,
+                                                                                                              border: Border.fromBorderSide(
+                                                                                                                BorderSide(color: Colors.white, width: 2), // 太めの白い枠線に変更
+                                                                                                              ),
+                                                                                                            ),
+                                                                                                            selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                                                                                                            markerDecoration: BoxDecoration(
+                                                                                                              color: Colors.white,
+                                                                                                              shape: BoxShape.circle,
+                                                                                                            ),
+                                                                                                          ),
+                                                                                                          calendarBuilders: CalendarBuilders(
+                                                                                                            selectedBuilder: (context, day, focusedDay) {
+                                                                                                              final isToday = isSameDay(day, DateTime.now());
+                                                                                                              return Center(
+                                                                                                                child: Container(
+                                                                                                                  width: 32,
+                                                                                                                  height: 32,
+                                                                                                                  decoration: BoxDecoration(
+                                                                                                                    shape: BoxShape.circle,
+                                                                                                                    border: Border.all(color: Colors.white, width: 2),
+                                                                                                                  ),
+                                                                                                                  child: Center(
+                                                                                                                    child: Text(
+                                                                                                                      '${day.day}',
+                                                                                                                      style: TextStyle(
+                                                                                                                        color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                                                                                                                        fontWeight: FontWeight.w900,
+                                                                                                                        fontSize: 13,
+                                                                                                                      ),
+                                                                                                                    ),
+                                                                                                                  ),
+                                                                                                                ),
+                                                                                                              );
+                                                                                                            },                      markerBuilder: (context, day, events) {
                     if (events.isEmpty) return const SizedBox.shrink();
 
                     // キャストしてWorkoutLogのリストとして扱う

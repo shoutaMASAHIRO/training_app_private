@@ -427,10 +427,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: Colors.white12, // さらに控えめに
                         shape: BoxShape.circle,
                       ),
-                      todayTextStyle: TextStyle(
-                        color: Colors.orangeAccent,
+                      todayTextStyle: const TextStyle(
+                        color: Colors.deepOrangeAccent,
                         fontWeight: FontWeight.w900,
-                        // fontSize を削除 (デフォルトに戻す)
                       ),
                       selectedDecoration: BoxDecoration(
                         color: Colors.transparent, // 塗りつぶしを廃止
@@ -460,9 +459,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               child: Text(
                                 '${day.day}',
                                 style: TextStyle(
-                                  color: isToday ? Colors.orangeAccent : Colors.white,
+                                  color: isToday ? Colors.deepOrangeAccent : Colors.white,
                                   fontWeight: FontWeight.w900,
-                                  fontSize: 13, // 他の日付と同じサイズに統一
+                                  fontSize: 13,
                                 ),
                               ),
                             ),
@@ -605,24 +604,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
 
-                // セクション展開時のみ表示される「全てクリア」ボタン
+                // セクション展開時のみ表示される「すべて削除」ボタン
                 if (_isProgramsExpanded) ...[
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: _confirmDeleteAllSchedules,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), // サイズを拡大
                       decoration: BoxDecoration(
                         color: Colors.red.shade50,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.withValues(alpha: 0.1)),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
                       ),
                       child: const Text(
-                        '全てクリア',
+                        'すべて削除', // 文字列を変更
                         style: TextStyle(
                           color: Colors.red,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 12, // フォントサイズを拡大
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),

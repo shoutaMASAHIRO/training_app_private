@@ -397,11 +397,96 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Widget _buildCompleteButton() {
     return ElevatedButton(
       onPressed: () async {
+        final successCount = _setStatuses.where((s) => s == true).length;
+        final failCount = _setStatuses.where((s) => s == false).length;
+        final totalSets = _setStatuses.length;
+        final incompleteCount = totalSets - (successCount + failCount);
+
+        // 確認ダイアログを表示
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Column(
+              children: [
+                Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00ACC1), size: 48),
+                SizedBox(height: 16),
+                Text('ワークアウトの完了', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('本日のトレーニングを終了しますか？', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161))),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatColumn('成功', successCount, const Color(0xFF00ACC1)),
+                      _buildStatColumn('失敗', failCount, Colors.red),
+                      _buildStatColumn('未完了', incompleteCount, Colors.orange),
+                    ],
+                  ),
+                ),
+                if (incompleteCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(
+                      '※未完了のセットがあるため、\nこの記録は「未達成」として保存されます。',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.orange.shade900, // より濃いオレンジに変更して視認性を向上
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            actions: [
+              Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56, // 高さを増やしてゆとりを持たせる
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00ACC1),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: EdgeInsets.zero, // SizedBoxで制御
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('完了する', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, height: 1.2)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: Text('まだ続ける', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true) return;
+
         try {
-          final successCount = _setStatuses.where((s) => s == true).length;
-          final failCount = _setStatuses.where((s) => s == false).length;
-          final totalSets = _setStatuses.length;
-          
           // 全てのセットが成功している場合のみ「成功」とみなす
           final bool isOverallSuccess = (successCount == totalSets);
           final String resultStatus = isOverallSuccess ? 'success' : 'fail';
@@ -435,6 +520,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       },
       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00ACC1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
       child: const Text('ワークアウト完了', style: TextStyle(fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildStatColumn(String label, int count, Color color) {
+    return Column(
+      children: [
+        Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: color)),
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+      ],
     );
   }
 }
