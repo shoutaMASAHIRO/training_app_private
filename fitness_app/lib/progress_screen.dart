@@ -237,32 +237,57 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
                   todayDecoration: BoxDecoration(
-                    color: Colors.white30,
+                    color: Colors.white12,
                     shape: BoxShape.circle,
                   ),
-                  todayTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  todayTextStyle: TextStyle(
+                    color: Colors.orangeAccent,
+                    fontWeight: FontWeight.w900,
+                  ),
                   selectedDecoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.transparent,
                     shape: BoxShape.circle,
+                    border: Border.fromBorderSide(
+                      BorderSide(color: Colors.white, width: 2),
+                    ),
                   ),
-                  selectedTextStyle: TextStyle(color: Color(0xFF00ACC1), fontWeight: FontWeight.bold),
+                  selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
                   markerDecoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
                 ),
                 calendarBuilders: CalendarBuilders(
+                  selectedBuilder: (context, day, focusedDay) {
+                    final isToday = isSameDay(day, DateTime.now());
+                    return Center(
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                                                    child: Center(
+                                                      child: Text(
+                                                        '${day.day}',
+                                                        style: TextStyle(
+                                                          color: isToday ? Colors.orangeAccent : Colors.white,
+                                                          fontWeight: FontWeight.w900,
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    ),                      ),
+                    );
+                  },
                   markerBuilder: (context, day, events) {
                     if (events.isEmpty) return const SizedBox.shrink();
                     return Positioned(
-                      bottom: 1,
-                      child: Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                        ),
+                      bottom: 0,
+                      child: const Icon(
+                        Icons.stars_rounded,
+                        color: Colors.white,
+                        size: 14,
                       ),
                     );
                   },

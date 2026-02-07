@@ -116,9 +116,9 @@ class _TodayWorkoutListItem extends StatelessWidget {
                 Text(
                   exercise,
                   style: const TextStyle(
-                    fontSize: 20, // Match Smolov title size
+                    fontSize: 22, // Match sessionTitle size
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF00ACC1), // Changed to Cyan
+                    color: Color(0xFF00ACC1),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -128,9 +128,9 @@ class _TodayWorkoutListItem extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        setsStr,
+                        setsStr.replaceAll('+', '～限界'),
                         style: const TextStyle(
-                          fontSize: 17, // Match Smolov detail size
+                          fontSize: 17, // Unified detail size
                           color: Color(0xFF424242),
                           fontWeight: FontWeight.w900,
                         ),
@@ -182,18 +182,11 @@ class _TodayWorkoutListItem extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  schedule.menuDifficulty,
-                  style: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold),
-                ),
               ],
             ),
             if (schedule.sessionTitle != null &&
-                schedule.sessionTitle!.isNotEmpty) ...[
+                schedule.sessionTitle!.isNotEmpty &&
+                !RegExp(r'^(Workout [A-Z]|Cycle Day|High Volume Session|Session \d+|Volume Day|Recovery Day|Intensity Day|.* Session)$').hasMatch(schedule.sessionTitle!)) ...[
               const SizedBox(height: 16),
               Text(
                 schedule.sessionTitle!,
@@ -216,7 +209,7 @@ class _TodayWorkoutListItem extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            schedule.workoutDetails!,
+                            schedule.workoutDetails!.replaceAll('+', '～限界'),
                             style: const TextStyle(
                               fontSize: 17,
                               color: Color(0xFF424242),

@@ -424,26 +424,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
                       todayDecoration: BoxDecoration(
-                        color: Colors.white30,
+                        color: Colors.white12, // さらに控えめに
                         shape: BoxShape.circle,
                       ),
-                      todayTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      todayTextStyle: TextStyle(
+                        color: Colors.orangeAccent,
+                        fontWeight: FontWeight.w900,
+                        // fontSize を削除 (デフォルトに戻す)
+                      ),
                       selectedDecoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Colors.transparent, // 塗りつぶしを廃止
                         shape: BoxShape.circle,
+                        border: Border.fromBorderSide(
+                          BorderSide(color: Colors.white, width: 2), // 太めの白い枠線に変更
+                        ),
                       ),
-                      selectedTextStyle: TextStyle(color: Color(0xFF00ACC1), fontWeight: FontWeight.bold),
+                      selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
                       markerDecoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
                     ),
                     calendarBuilders: CalendarBuilders(
+                      selectedBuilder: (context, day, focusedDay) {
+                        final isToday = isSameDay(day, DateTime.now());
+                        return Center(
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${day.day}',
+                                style: TextStyle(
+                                  color: isToday ? Colors.orangeAccent : Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13, // 他の日付と同じサイズに統一
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                       markerBuilder: (context, day, events) {
                         if (events.isEmpty) return const SizedBox.shrink();
-                        // Simplified white markers for cleaner look on blue
+
+                        // キャストしてWorkoutScheduleのリストとして扱う
+                        final schedules = events.cast<WorkoutSchedule>();
+                        
+                        // 失敗したスケジュールと完了したスケジュールを分ける
+                        // ※ダッシュボードでは「isCompleted == true かつ failCount > 0」を失敗とするなどのロジックが必要だが、
+                        // スケジュールデータには通常failCountがないため、ここではLogsの情報を参照するか、
+                        // あるいは「完了済みかつ失敗ログが存在するか」を判定する必要がある。
+                        // 一旦、ダッシュボードは「予定」を表示する場所なので、シンプルに表示を整える。
+                        
                         return Positioned(
-                          bottom: 1,
+                          bottom: 0,
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: List.generate(
@@ -2741,7 +2780,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                   ),
                   child: _isRegistering
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                      : const Text('スケジュールに登録', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      : const Text('独自プログラムとして登録', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -4372,7 +4411,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '${day['reps']}x${day['sets']} @ ${day['weight']}kg',
+                '${day['reps'].toString().replaceAll('+', '～限界')}x${day['sets']} @ ${day['weight']}kg',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: const Color(0xFF00ACC1),

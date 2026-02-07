@@ -22,6 +22,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   // 各セットの状態 (null: 未完了, true: 成功, false: 失敗)
   List<bool?> _setStatuses = [];
+  // 展開されたトレーニング内容
+  List<Map<String, dynamic>> _expandedExercises = [];
 
   // ストップウォッチ
   final Stopwatch _stopwatch = Stopwatch();
@@ -32,41 +34,66 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void initState() {
     super.initState();
     _todaysSchedule = widget.schedule;
-    _initializeSetStatuses();
+    _initializeWorkoutData();
   }
 
-  void _initializeSetStatuses() {
+  void _initializeWorkoutData() {
+    _expandedExercises = [];
     final details = _todaysSchedule.workoutDetails ?? '';
     final menuTitle = _todaysSchedule.menuTitle;
-    int totalSets = 0;
 
-    if (details.contains(':') || details.contains('\n')) {
-      // カスタムメニュー形式
-      final lines = details.split('\n');
-      for (var line in lines) {
-        if (line.isEmpty || !line.contains(':')) continue;
+    final lines = details.split('\n');
+    for (var line in lines) {
+      if (line.isEmpty) continue;
+
+      String name = menuTitle;
+      String content = line;
+      if (line.contains(':')) {
         final parts = line.split(': ');
-        final setsStr = parts.length > 1 ? parts[1] : '';
-        totalSets += setsStr.split(', ').where((s) => s.isNotEmpty).length;
+        name = parts[0];
+        content = parts.length > 1 ? parts[1] : '';
       }
-    } else if (details.contains('x') || details.contains('X')) {
-      // Smolov Jr / 10x10 / 531 などの形式
-      final regExp = RegExp(r'(\d+)\s*[xX]\s*(\d+)');
-      final match = regExp.firstMatch(details);
-      
-      if (match != null) {
-        final val1 = int.parse(match.group(1)!);
-        final val2 = int.parse(match.group(2)!);
-        
-        if (menuTitle == 'Smolov Jr.' || menuTitle == '5/3/1') {
-          totalSets = val2; // Reps x Sets
+
+      List<String> expandedSets = [];
+      final segments = content.split(', ').where((s) => s.isNotEmpty).toList();
+      for (var segment in segments) {
+        final regExp = RegExp(r'(\d+\+?)\s*[xX]\s*(\d+\+?)');
+        final match = regExp.firstMatch(segment);
+        if (match != null) {
+          final val1Str = match.group(1)!;
+          final val2Str = match.group(2)!;
+
+          int numSets;
+          String repsLabel;
+
+          if (menuTitle == 'Smolov Jr.' || menuTitle == '5/3/1') {
+            repsLabel = val1Str.replaceAll('+', '～限界');
+            numSets = int.parse(val2Str.replaceAll('+', ''));
+          } else {
+            numSets = int.parse(val1Str.replaceAll('+', ''));
+            repsLabel = val2Str;
+          }
+
+          String weight = segment.contains('@') ? segment.split('@')[1].trim() : '';
+          for (int i = 0; i < numSets; i++) {
+            expandedSets.add('$repsLabel reps ${weight.isNotEmpty ? "@ $weight" : ""}');
+          }
         } else {
-          totalSets = val1; // Sets x Reps
+          expandedSets.add(segment);
         }
+      }
+      if (expandedSets.isNotEmpty) {
+        _expandedExercises.add({
+          'name': name,
+          'sets': expandedSets,
+        });
       }
     }
 
-    if (totalSets == 0 && details.isNotEmpty) totalSets = 1;
+    int totalSets = 0;
+    for (var ex in _expandedExercises) {
+      totalSets += (ex['sets'] as List).length;
+    }
     _setStatuses = List.filled(totalSets, null);
   }
 
@@ -194,44 +221,21 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: Text(_todaysSchedule.sessionTitle!, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF212121))),
           ),
-        _buildSetList(_todaysSchedule.workoutDetails ?? '', const Color(0xFF00ACC1)),
+        _buildSetList(const Color(0xFF00ACC1)),
       ],
     );
   }
 
-  Widget _buildSetList(String details, Color themeColor) {
-    if (details.isEmpty) return const SizedBox.shrink();
+  Widget _buildSetList(Color themeColor) {
+    if (_expandedExercises.isEmpty) return const SizedBox.shrink();
     List<Widget> setWidgets = [];
     int globalSetIndex = 0;
 
-    if (details.contains(':') || details.contains('\n')) {
-      final lines = details.split('\n');
-      for (var line in lines) {
-        if (line.isEmpty || !line.contains(':')) continue;
-        final parts = line.split(': ');
-        final name = parts[0];
-        final sets = parts[1].split(', ').where((s) => s.isNotEmpty).toList();
-        setWidgets.add(_buildExerciseStatusCard(name, sets, globalSetIndex, themeColor));
-        globalSetIndex += sets.length;
-      }
-    } else {
-      final regExp = RegExp(r'(\d+)\s*[xX]\s*(\d+)');
-      final match = regExp.firstMatch(details);
-      if (match != null) {
-        final val1 = int.parse(match.group(1)!);
-        final val2 = int.parse(match.group(2)!);
-        int reps, numSets;
-        if (_todaysSchedule.menuTitle == 'Smolov Jr.' || _todaysSchedule.menuTitle == '5/3/1') {
-          reps = val1; numSets = val2;
-        } else {
-          numSets = val1; reps = val2;
-        }
-        String weight = details.contains('@') ? details.split('@')[1].trim() : '';
-        final sets = List.generate(numSets, (_) => '$reps reps ${weight.isNotEmpty ? "@ $weight" : ""}');
-        setWidgets.add(_buildExerciseStatusCard(_todaysSchedule.menuTitle, sets, globalSetIndex, themeColor));
-      } else {
-        setWidgets.add(_buildExerciseStatusCard(_todaysSchedule.menuTitle, [details], globalSetIndex, themeColor));
-      }
+    for (var ex in _expandedExercises) {
+      final name = ex['name'] as String;
+      final sets = ex['sets'] as List<String>;
+      setWidgets.add(_buildExerciseStatusCard(name, sets, globalSetIndex, themeColor));
+      globalSetIndex += sets.length;
     }
     return Column(children: setWidgets);
   }
@@ -323,24 +327,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   Widget _buildSummaryContent() {
-    final details = _todaysSchedule.workoutDetails ?? '';
     List<Widget> rows = [];
-    if (details.contains(':') || details.contains('\n')) {
-      final lines = details.split('\n');
-      int idx = 0;
-      for (var line in lines) {
-        if (line.isEmpty || !line.contains(':')) continue;
-        final name = line.split(': ')[0];
-        final num = line.split(': ')[1].split(', ').length;
-        final success = _setStatuses.sublist(idx, (idx + num).clamp(0, _setStatuses.length)).where((s) => s == true).length;
-        final fail = _setStatuses.sublist(idx, (idx + num).clamp(0, _setStatuses.length)).where((s) => s == false).length;
-        rows.add(_buildSummaryRow(name, success, fail));
-        idx += num;
-      }
-    } else {
-      final success = _setStatuses.where((s) => s == true).length;
-      final fail = _setStatuses.where((s) => s == false).length;
-      rows.add(_buildSummaryRow(_todaysSchedule.menuTitle, success, fail));
+    int idx = 0;
+    for (var ex in _expandedExercises) {
+      final name = ex['name'] as String;
+      final num = (ex['sets'] as List).length;
+      final success = _setStatuses.sublist(idx, (idx + num).clamp(0, _setStatuses.length)).where((s) => s == true).length;
+      final fail = _setStatuses.sublist(idx, (idx + num).clamp(0, _setStatuses.length)).where((s) => s == false).length;
+      rows.add(_buildSummaryRow(name, success, fail));
+      idx += num;
     }
     return Column(children: rows);
   }
@@ -403,19 +398,36 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     return ElevatedButton(
       onPressed: () async {
         try {
+          final successCount = _setStatuses.where((s) => s == true).length;
+          final failCount = _setStatuses.where((s) => s == false).length;
+          final totalSets = _setStatuses.length;
+          
+          // 全てのセットが成功している場合のみ「成功」とみなす
+          final bool isOverallSuccess = (successCount == totalSets);
+          final String resultStatus = isOverallSuccess ? 'success' : 'fail';
+
           await _apiService.completeSchedule(_todaysSchedule.id);
           final log = WorkoutLog(
             completedDate: DateTime.now(),
             menuTitle: _todaysSchedule.menuTitle,
             workoutDetails: _todaysSchedule.workoutDetails,
             sessionTitle: _todaysSchedule.sessionTitle,
-            successCount: _setStatuses.where((s) => s == true).length,
-            failCount: _setStatuses.where((s) => s == false).length,
+            successCount: successCount,
+            failCount: failCount,
           );
           await _apiService.addLog(log);
+          
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ワークアウト完了！ 🎉'), backgroundColor: Color(0xFF00ACC1)));
-            Navigator.pop(context, 'success');
+            String message = isOverallSuccess 
+                ? 'ワークアウト完了！ 🎉' 
+                : 'ワークアウト完了（一部未達成あり）';
+            Color snackColor = isOverallSuccess ? const Color(0xFF00ACC1) : Colors.orange;
+            
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(message), 
+              backgroundColor: snackColor,
+            ));
+            Navigator.pop(context, resultStatus);
           }
         } catch (e) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red));

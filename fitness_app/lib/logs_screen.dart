@@ -179,19 +179,152 @@ class _LogsScreenState extends State<LogsScreen> {
                   weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
                   todayDecoration: BoxDecoration(
-                    color: Colors.white30,
+                    color: Colors.white12, // さらに控えめに
                     shape: BoxShape.circle,
                   ),
-                  todayTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  selectedDecoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  selectedTextStyle: TextStyle(color: Color(0xFF00ACC1), fontWeight: FontWeight.bold),
-                  markerDecoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
+                                                      todayTextStyle: TextStyle(
+                                                        color: Colors.orangeAccent,
+                                                        fontWeight: FontWeight.w900,
+                                                      ),
+                                                      selectedDecoration: BoxDecoration(
+                                                        color: Colors.transparent, // 塗りつぶしを透明に
+                                                        shape: BoxShape.circle,
+                                                        border: Border.fromBorderSide(
+                                                          BorderSide(color: Colors.white, width: 2), // 太めの白い枠線に変更
+                                                        ),
+                                                      ),
+                                                      selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                                                      markerDecoration: BoxDecoration(
+                                                        color: Colors.white,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                    calendarBuilders: CalendarBuilders(
+                                                      selectedBuilder: (context, day, focusedDay) {
+                                                        final isToday = isSameDay(day, DateTime.now());
+                                                        return Center(
+                                                          child: Container(
+                                                            width: 32,
+                                                            height: 32,
+                                                            decoration: BoxDecoration(
+                                                              shape: BoxShape.circle,
+                                                              border: Border.all(color: Colors.white, width: 2),
+                                                            ),
+                                                            child: Center(
+                                                              child: Text(
+                                                                '${day.day}',
+                                                                style: TextStyle(
+                                                                  color: isToday ? Colors.orangeAccent : Colors.white,
+                                                                  fontWeight: FontWeight.w900,
+                                                                  fontSize: 13,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },                      markerBuilder: (context, day, events) {
+                    if (events.isEmpty) return const SizedBox.shrink();
+
+                    // キャストしてWorkoutLogのリストとして扱う
+                    final logs = events.cast<WorkoutLog>();
+                    
+                    // 失敗したログと成功したログを分ける
+                    final failedLogs = logs.where((log) => (log.failCount ?? 0) > 0).toList();
+                    final successLogs = logs.where((log) => (log.failCount ?? 0) == 0).toList();
+
+                    // 表示用のマーカーリストを作成
+                    final List<Widget> allMarkers = [];
+
+                    // 失敗マーカーを追加
+                    for (var _ in failedLogs) {
+                      allMarkers.add(
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                          child: SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Transform.rotate(
+                                  angle: 0.785, // 45 degrees
+                                  child: Container(
+                                    width: 11,
+                                    height: 2.5,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade400,
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                  ),
+                                ),
+                                Transform.rotate(
+                                  angle: -0.785,
+                                  child: Container(
+                                    width: 11,
+                                    height: 2.5,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade400,
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // 成功マーカーを追加
+                    for (var _ in successLogs) {
+                      allMarkers.add(
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 1.0),
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    }
+
+                    // 最大表示数を3に制限
+                    const int maxDisplay = 3;
+                    final displayMarkers = allMarkers.take(maxDisplay).toList();
+                    final remainingCount = allMarkers.length - maxDisplay;
+
+                    // 今日かどうかで位置を微調整 (今日だけ位置を下げる)
+                    final double bottomPosition = isSameDay(day, DateTime.now()) ? -4 : 0;
+
+                    return Positioned(
+                      bottom: bottomPosition,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ...displayMarkers,
+                          if (remainingCount > 0)
+                            Container(
+                              margin: const EdgeInsets.only(left: 2.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '+$remainingCount',
+                                style: const TextStyle(
+                                  color: Color(0xFF00ACC1),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -218,7 +351,7 @@ class _LogsScreenState extends State<LogsScreen> {
                                             TextButton.icon(
                                               onPressed: () => _deleteLogsForDay(_selectedDay!),
                                               icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                                              label: const Text('削除', style: TextStyle(color: Colors.red)),
+                                              label: const Text('すべて削除', style: TextStyle(color: Colors.red)),
                                               style: TextButton.styleFrom(
                                                 foregroundColor: Colors.red,
                                               ),
@@ -242,8 +375,30 @@ class _LogsScreenState extends State<LogsScreen> {
                           ),
                         ),
                       )
-                    else
-                      ...selectedDayLogs.map((log) => _buildLogCard(log)),
+                    else ...[
+                      // 失敗したログ（未達成）セクション
+                      if (selectedDayLogs.any((log) => (log.failCount ?? 0) > 0)) ...[
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4, top: 16, bottom: 12),
+                          child: Text(
+                            '未達成',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.red),
+                          ),
+                        ),
+                        ...selectedDayLogs.where((log) => (log.failCount ?? 0) > 0).map((log) => _buildLogCard(log, isSuccess: false)),
+                      ],
+                      // 成功したログ（完了）セクション
+                      if (selectedDayLogs.any((log) => (log.failCount ?? 0) == 0)) ...[
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4, top: 16, bottom: 12),
+                          child: Text(
+                            '完了',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF00ACC1)),
+                          ),
+                        ),
+                        ...selectedDayLogs.where((log) => (log.failCount ?? 0) == 0).map((log) => _buildLogCard(log, isSuccess: true)),
+                      ],
+                    ],
                   ],
                 ),
               ),
@@ -254,22 +409,23 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  Widget _buildLogCard(WorkoutLog log) {
+  Widget _buildLogCard(WorkoutLog log, {required bool isSuccess}) {
     final menuTitle = log.menuTitle;
     final workoutDetails = log.workoutDetails;
     final successCount = log.successCount ?? 0;
     final failCount = log.failCount ?? 0;
     final totalCount = successCount + failCount;
+    final accentColor = isSuccess ? const Color(0xFF00ACC1) : Colors.red;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+        border: Border.all(color: accentColor.withValues(alpha: 0.2), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+            color: accentColor.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -280,10 +436,10 @@ class _LogsScreenState extends State<LogsScreen> {
         child: IntrinsicHeight(
           child: Row(
             children: [
-              // 左側のアクセントバー
+              // 左側のアクセントバー (動的に色を変更)
               Container(
                 width: 6,
-                color: const Color(0xFF00ACC1),
+                color: accentColor,
               ),
               Expanded(
                 child: Padding(
@@ -297,9 +453,9 @@ class _LogsScreenState extends State<LogsScreen> {
                             child: Text(
                               menuTitle,
                               style: const TextStyle(
-                                fontSize: 18, // Increased
-                                fontWeight: FontWeight.w900, // Bolder
-                                color: Color(0xFF212121), // Darker
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF212121),
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -312,15 +468,15 @@ class _LogsScreenState extends State<LogsScreen> {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(Icons.fitness_center, size: 18, color: Color(0xFF424242)), // Darker icon
+                            Icon(Icons.fitness_center, size: 18, color: accentColor), // アイコン色も合わせる
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 workoutDetails,
                                 style: const TextStyle(
-                                  fontSize: 16, // Increased
-                                  color: Color(0xFF424242), // Darker
-                                  fontWeight: FontWeight.w900, // Bolder
+                                  fontSize: 16,
+                                  color: Color(0xFF424242),
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
                             ),
@@ -345,7 +501,7 @@ class _LogsScreenState extends State<LogsScreen> {
                   ),
                 ),
               ),
-              // 削除ボタン (Progressページと同じスタイル)
+              // 削除ボタン
               Material(
                 color: Colors.red.shade50,
                 child: InkWell(
