@@ -6,8 +6,9 @@ import 'package:fitness_app/home_screen.dart';
 
 class AddManualLogScreen extends StatefulWidget {
   final DateTime? selectedDate;
+  final String? exerciseName;
 
-  const AddManualLogScreen({super.key, this.selectedDate});
+  const AddManualLogScreen({super.key, this.selectedDate, this.exerciseName});
 
   @override
   State<AddManualLogScreen> createState() => _AddManualLogScreenState();
@@ -21,24 +22,170 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
   final DatabaseService _dbService = DatabaseService();
   late DateTime _selectedDate;
   bool _isSaving = false;
-  int _selectedIndex = 2; // Progress tab
+  int _selectedIndex = 3; // Progress tab (Updated index)
 
-  // 候補となる種目リスト
-  static const List<String> _exerciseOptions = [
-    'Benchpress',
-    'Squat',
-    'Weighted Pullup',
-    'Bulgarian Split Squat',
-  ];
+  // 候補となる種目リスト（カテゴリ別）
+  static const Map<String, List<String>> _categorizedExercises = {
+    '脚（前）': [
+      'バックスクワット',
+      'フロントスクワット',
+      'ボックススクワット',
+      'スミススクワット',
+      'ゴブレッドスクワット',
+      'ブルガリアンスクワット',
+      'ハックスクワット',
+      'レッグプレス',
+      'レッグエクステンション',
+    ],
+    '脚（後）': [
+      'コンベンショナルデッドリフト',
+      'スモウデッドリフト',
+      'ルーマニアンデッドリフト',
+      'スティフレッグデッドリフト',
+      'グッドモーニング',
+      'ヒップスラスト',
+      'レッグカール',
+    ],
+    'ふくらはぎ': [
+      'カーフレイズ',
+      'シーテッドカーフレイズ',
+      'ドンキーカーフレイズ',
+    ],
+    '胸': [
+      'バーベルベンチプレス',
+      'ナローバーベルベンチプレス',
+      'インクラインベンチプレス',
+      'ダンベルプレス',
+      'インクラインダンベルプレス',
+      'ディップス',
+      'ペックフライ',
+      'インクラインダンベルフライ',
+      'ケーブルフライ',
+      'ダンベルプルオーバー',
+    ],
+    '背中': [
+      'ラットプルダウン',
+      'プルアップ',
+      'インバーテッドロー',
+      'Tバーロー',
+      'ワンハンドロー',
+    ],
+    '肩': [
+      'バーベルショルダープレス',
+      'ダンベルショルダープレス',
+      'サイドレイズ',
+      'フロントレイズ',
+    ],
+    '二頭筋': [
+      'バーベルカール',
+      'ダンベルカール',
+      'プリーチャーカール',
+      'ケーブルカール',
+    ],
+    '三頭筋': [
+      'JMプレス',
+      'バーベルエクステンション',
+      'ケーブルエクステンション',
+      'ケーブルプレスダウン',
+      'キックバック',
+    ],
+    '前腕': [
+      'バーベルリストカール',
+      'ダンベルリストカール',
+      'ケーブルリストカール',
+    ],
+  };
+
+  // 全ての種目をフラットなリストとしても保持
+  static final List<String> _allExercises = _categorizedExercises.values.expand((e) => e).toList();
 
   Color _getExerciseColor(String? exercise) {
     return const Color(0xFF00ACC1); // Default to Cyan
+  }
+
+  List<DropdownMenuItem<String>> _buildDropdownItems(Color themeColor) {
+    List<DropdownMenuItem<String>> items = [];
+    _categorizedExercises.forEach((category, exercises) {
+      items.add(DropdownMenuItem(
+        value: category,
+        enabled: false,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            '--- $category ---',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: themeColor.withValues(alpha: 0.6),
+              fontSize: 11,
+            ),
+          ),
+        ),
+      ));
+      for (var exercise in exercises) {
+        items.add(DropdownMenuItem(
+          value: exercise,
+          child: Row(
+            children: [
+              Image.asset(
+                'image/icons/$exercise.png',
+                width: 24,
+                height: 24,
+                errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 20, color: Colors.grey.shade400),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  exercise,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ));
+      }
+    });
+    return items;
+  }
+
+  List<Widget> _buildSelectedItems() {
+    List<Widget> selectedWidgets = [];
+    _categorizedExercises.forEach((category, exercises) {
+      selectedWidgets.add(Text(category));
+      for (var exercise in exercises) {
+        selectedWidgets.add(
+          Row(
+            children: [
+              Image.asset(
+                'image/icons/$exercise.png',
+                width: 20,
+                height: 20,
+                errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 18, color: Colors.grey.shade400),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  exercise,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          )
+        );
+      }
+    });
+    return selectedWidgets;
   }
 
   @override
   void initState() {
     super.initState();
     _selectedDate = widget.selectedDate ?? DateTime.now();
+    if (widget.exerciseName != null) {
+      _exerciseNameController.text = widget.exerciseName!;
+    }
   }
 
   @override
@@ -48,6 +195,133 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
     _maxRepsWeightController.dispose();
     _maxRepsCountController.dispose();
     super.dispose();
+  }
+
+  Future<void> _showExerciseSelectionModal(BuildContext context, Function(String) onSelect) async {
+    FocusScope.of(context).unfocus();
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.pop(context),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) {
+              return GestureDetector(
+                onTap: () {}, // コンテンツ内タップで閉じないようにする
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2.5),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text(
+                          '種目を選択',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            color: Colors.grey[800]
+                          ),
+                        ),
+                      ),
+                                                          Expanded(
+                                                            child: ListView(
+                                                              controller: scrollController,
+                                                              padding: const EdgeInsets.only(bottom: 30),
+                                                              children: _categorizedExercises.entries.map((entry) {
+                                                                return Theme(
+                                                                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                                                  child: ExpansionTile(
+                                                                    maintainState: false, // 軽量化
+                                                                    title: Row(
+                                                                      children: [
+                                                                        Expanded(
+                                                                          child: Text(
+                                                                            entry.key,
+                                                                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF424242)),
+                                                                          ),
+                                                                        ),
+                                                                        Container(
+                                                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                                          decoration: BoxDecoration(
+                                                                            color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                                                                            borderRadius: BorderRadius.circular(10),
+                                                                          ),
+                                                                          child: Text(
+                                                                            '${entry.value.length}',
+                                                                            style: const TextStyle(
+                                                                              color: Color(0xFF00ACC1),
+                                                                              fontSize: 11,
+                                                                              fontWeight: FontWeight.w900,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                    collapsedIconColor: const Color(0xFF00ACC1),
+                                                                    iconColor: const Color(0xFF00ACC1),
+                                                                    children: entry.value.map((exercise) {
+                                                                      return ListTile(
+                                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                                                                        leading: Container(
+                                                                          padding: const EdgeInsets.all(8),
+                                                                          decoration: BoxDecoration(
+                                                                            color: Colors.grey[50],
+                                                                            borderRadius: BorderRadius.circular(8),
+                                                                          ),
+                                                                          child: Image.asset(
+                                                                            'image/icons/$exercise.png',
+                                                                            width: 96,
+                                                                            height: 96,
+                                                                            fit: BoxFit.contain,
+                                                                            cacheWidth: 150, // 192 -> 150
+                                                                            errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 48, color: Colors.grey.shade400),
+                                                                          ),
+                                                                        ),
+                                    title: Text(
+                                      exercise,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF424242)),
+                                    ),
+                                    onTap: () {
+                                      onSelect(exercise);
+                                      Navigator.pop(context);
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   void _onItemTapped(int index) {
@@ -316,46 +590,105 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                           ),
                         ],
                       ),
-                      child: DropdownButtonFormField<String>(
-                        value: _exerciseNameController.text.isNotEmpty && _exerciseOptions.contains(_exerciseNameController.text)
-                            ? _exerciseNameController.text
-                            : null,
-                        decoration: InputDecoration(
-                          hintText: '種目を選択してください',
-                          hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                          fillColor: Colors.white,
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
-                          ),
-                        ),
-                        items: _exerciseOptions.map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value,
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _exerciseNameController.text = newValue ?? '';
+                      child: InkWell(
+                        onTap: () {
+                          _showExerciseSelectionModal(context, (selected) {
+                            setState(() {
+                              _exerciseNameController.text = selected;
+                            });
                           });
                         },
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00ACC1)),
-                        dropdownColor: Colors.white,
                         borderRadius: BorderRadius.circular(24),
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            hintText: '種目を選択してください',
+                            hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                            fillColor: Colors.white,
+                            filled: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
+                            ),
+                          ),
+                          child: _exerciseNameController.text.isNotEmpty 
+                            ? Column(
+                                children: [
+                                  const SizedBox(height: 16),
+                                  Stack(
+                                    alignment: Alignment.bottomRight,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.1), width: 2),
+                                        ),
+                                        child: Image.asset(
+                                          'image/icons/${_exerciseNameController.text}.png',
+                                          width: 144,
+                                          height: 144,
+                                          fit: BoxFit.contain,
+                                          cacheWidth: 288,
+                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                        ),
+                                      ),
+                                      // タッチできることを示すオーバーレイアイコン
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF00ACC1),
+                                          shape: BoxShape.circle,
+                                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                                        ),
+                                        child: const Icon(Icons.sync_rounded, color: Colors.white, size: 24),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.grey.shade200),
+                                    ),
+                                                                      child: Row(
+                                                                        mainAxisSize: MainAxisSize.min,
+                                                                        children: [
+                                                                          Flexible(
+                                                                            child: Text(
+                                                                              _exerciseNameController.text,
+                                                                              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF212121), fontSize: 18),
+                                                                              overflow: TextOverflow.ellipsis,
+                                                                            ),
+                                                                          ),
+                                                                          const SizedBox(width: 8),
+                                                                          const Icon(Icons.touch_app_rounded, color: Color(0xFF00ACC1), size: 18),
+                                                                        ],
+                                                                      ),                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'タップして種目を変更',
+                                    style: TextStyle(color: Color(0xFF00ACC1), fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              )
+                            : Text(
+                                '種目を選択してください',
+                                style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal, fontSize: 16),
+                              ),
+                        ),
                       ),
                     ),
                   ],
@@ -388,7 +721,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                         Icon(Icons.monitor_weight_outlined, color: themeColor, size: 20),
                         const SizedBox(width: 8),
                         const Text(
-                          '達成重量 or 最大rep',
+                          '達成重量 or 最大rep (どちらか記入)',
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF424242)),
                         ),
                       ],
@@ -477,12 +810,13 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
 
             // 保存ボタン
             SizedBox(
-              height: 56,
+              height: 72, // さらに高さを増やして十分なゆとりを持たせる
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveLog,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00ACC1), // Cyan
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12), // パディングをさらに拡大
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -497,11 +831,11 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.check_circle_outline),
-                          SizedBox(width: 10),
+                          Icon(Icons.check_circle_outline, size: 24),
+                          SizedBox(width: 16), // アイコンと文字の間隔をさらに広げる
                           Text(
                             '実績を保存',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.2), // 太さと文字間隔を調整
                           ),
                         ],
                       ),

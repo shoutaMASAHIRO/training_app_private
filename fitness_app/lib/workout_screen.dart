@@ -113,6 +113,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       case 1: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1}); break;
       case 2: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2}); break;
       case 3: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3}); break;
+      case 4: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 4}); break;
     }
   }
 
@@ -255,7 +256,27 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(child: Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)))),
+              Expanded(
+                child: Row(
+                  children: [
+                    Image.asset(
+                      'image/icons/$name.png',
+                      width: 112,
+                      height: 112,
+                      fit: BoxFit.contain,
+                      cacheWidth: 224,
+                      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                    ),
+                    const SizedBox(width: 24), // 16 -> 24
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Row(children: [_buildSmallCountChip('成功', success, const Color(0xFF00ACC1)), const SizedBox(width: 6), _buildSmallCountChip('失敗', fail, Colors.red)]),
             ],
           ),

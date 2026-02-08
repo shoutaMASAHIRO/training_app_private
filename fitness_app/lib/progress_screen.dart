@@ -25,6 +25,247 @@ class _ProgressScreenState extends State<ProgressScreen> {
   Map<DateTime, double> _dailyWeights = {};
   int? _touchedIndex;
 
+  // 候補となる種目リスト（カテゴリ別）
+  static const Map<String, List<String>> _categorizedExercises = {
+    '脚（前）': [
+      'バックスクワット',
+      'フロントスクワット',
+      'ボックススクワット',
+      'スミススクワット',
+      'ゴブレッドスクワット',
+      'ブルガリアンスクワット',
+      'ハックスクワット',
+      'レッグプレス',
+      'レッグエクステンション',
+    ],
+    '脚（後）': [
+      'コンベンショナルデッドリフト',
+      'スモウデッドリフト',
+      'ルーマニアンデッドリフト',
+      'スティフレッグデッドリフト',
+      'グッドモーニング',
+      'ヒップスラスト',
+      'レッグカール',
+    ],
+    'ふくらはぎ': [
+      'カーフレイズ',
+      'シーテッドカーフレイズ',
+      'ドンキーカーフレイズ',
+    ],
+    '胸': [
+      'バーベルベンチプレス',
+      'ナローバーベルベンチプレス',
+      'インクラインベンチプレス',
+      'ダンベルプレス',
+      'インクラインダンベルプレス',
+      'ディップス',
+      'ペックフライ',
+      'インクラインダンベルフライ',
+      'ケーブルフライ',
+      'ダンベルプルオーバー',
+    ],
+    '背中': [
+      'ラットプルダウン',
+      'プルアップ',
+      'インバーテッドロー',
+      'Tバーロー',
+      'ワンハンドロー',
+    ],
+    '肩': [
+      'バーベルショルダープレス',
+      'ダンベルショルダープレス',
+      'サイドレイズ',
+      'フロントレイズ',
+    ],
+    '二頭筋': [
+      'バーベルカール',
+      'ダンベルカール',
+      'プリーチャーカール',
+      'ケーブルカール',
+    ],
+    '三頭筋': [
+      'JMプレス',
+      'バーベルエクステンション',
+      'ケーブルエクステンション',
+      'ケーブルプレスダウン',
+      'キックバック',
+    ],
+    '前腕': [
+      'バーベルリストカール',
+      'ダンベルリストカール',
+      'ケーブルリストカール',
+    ],
+  };
+
+  Future<void> _showExerciseSelectionModal(BuildContext context, Function(String) onSelect) async {
+    FocusScope.of(context).unfocus();
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.pop(context),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) {
+              return GestureDetector(
+                onTap: () {},
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2.5),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text(
+                          '種目を選択',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            color: Colors.grey[800]
+                          ),
+                        ),
+                      ),
+                                        Expanded(
+                                          child: ListView(
+                                            controller: scrollController,
+                                            padding: const EdgeInsets.only(bottom: 30),
+                                                                      children: _categorizedExercises.entries.map((entry) {
+                                                                        final category = entry.key;
+                                                                        final exercises = entry.value;
+                                                                        
+                                                                        // このカテゴリ内でデータがある種目数をカウント
+                                                                        final availableCount = exercises.where((ex) => _availableExercises.contains(ex)).length;
+                                            
+                                                                        return Theme(
+                                                                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                                                          child: ExpansionTile(
+                                                                            maintainState: false, // 軽量化
+                                                                            title: Row(
+                                                                              children: [
+                                                                                Expanded(
+                                                                                  child: Text(
+                                                                                    category,
+                                                                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF424242)),
+                                                                                  ),
+                                                                                ),
+                                                                                // データがある種目数 (赤)
+                                                                                if (availableCount > 0) ...[
+                                                                                  Container(
+                                                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                                                    decoration: BoxDecoration(
+                                                                                      color: Colors.red.shade50,
+                                                                                      borderRadius: BorderRadius.circular(10),
+                                                                                    ),
+                                                                                    child: Text(
+                                                                                      '$availableCount',
+                                                                                      style: const TextStyle(
+                                                                                        color: Colors.red,
+                                                                                        fontSize: 11,
+                                                                                        fontWeight: FontWeight.w900,
+                                                                                      ),
+                                                                                    ),
+                                                                                  ),
+                                                                                  const SizedBox(width: 6),
+                                                                                ],
+                                                                                // 合計種目数 (シアン)
+                                                                                Container(
+                                                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                                                  decoration: BoxDecoration(
+                                                                                    color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                                                                                    borderRadius: BorderRadius.circular(10),
+                                                                                  ),
+                                                                                  child: Text(
+                                                                                    '${exercises.length}',
+                                                                                    style: const TextStyle(
+                                                                                      color: Color(0xFF00ACC1),
+                                                                                      fontSize: 11,
+                                                                                      fontWeight: FontWeight.w900,
+                                                                                    ),
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                            collapsedIconColor: const Color(0xFF00ACC1),
+                                                                            iconColor: const Color(0xFF00ACC1),
+                                                                            children: exercises.map((exercise) {
+                                                                              final hasData = _availableExercises.contains(exercise);
+                                                                              return Container(
+                                                                                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                                                                                decoration: BoxDecoration(
+                                                                                  color: hasData ? Colors.red.withValues(alpha: 0.05) : Colors.transparent,
+                                                                                  borderRadius: BorderRadius.circular(12),
+                                                                                ),
+                                                                                child: ListTile(
+                                                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                                                                  leading: Container(
+                                                                                    padding: const EdgeInsets.all(8),
+                                                                                    decoration: BoxDecoration(
+                                                                                      color: hasData ? Colors.red.withValues(alpha: 0.1) : Colors.grey[50],
+                                                                                      borderRadius: BorderRadius.circular(8),
+                                                                                    ),
+                                                                                    child: Image.asset(
+                                                                                      'image/icons/$exercise.png',
+                                                                                      width: 96,
+                                                                                      height: 96,
+                                                                                      fit: BoxFit.contain,
+                                                                                      cacheWidth: 150, // 192 -> 150
+                                                                                      errorBuilder: (context, error, stackTrace) => Icon(
+                                                                                        Icons.fitness_center, 
+                                                                                        size: 48,
+                                                                                        color: hasData ? Colors.red.shade300 : Colors.grey.shade400
+                                                                                      ),
+                                                                                    ),
+                                                                                  ),
+                                                        title: Text(
+                                                          exercise,
+                                                          style: TextStyle(
+                                                            fontWeight: hasData ? FontWeight.w900 : FontWeight.bold, 
+                                                            fontSize: 15, 
+                                                            color: hasData ? Colors.red.shade900 : const Color(0xFF424242)
+                                                          ),
+                                                        ),
+                                                        trailing: hasData ? Icon(Icons.star_rounded, color: Colors.red.shade300, size: 18) : null,
+                                                        onTap: () {
+                                                          onSelect(exercise);
+                                                          Navigator.pop(context);
+                                                        },
+                                                      ),
+                                                    );
+                                                  }).toList(),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ),                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   // Calendar state
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
@@ -463,52 +704,61 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             ),
                           ],
                         ),
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedExercise,
-                          decoration: InputDecoration(
-                            labelText: '種目を選択',
-                            labelStyle: const TextStyle(
-                              color: Color(0xFF00ACC1),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                              letterSpacing: 1.0,
-                            ),
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                            fillColor: Colors.white,
-                            filled: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
-                            ),
-                          ),
-                          items: _availableExercises.map((exercise) {
-                            return DropdownMenuItem<String>(
-                              value: exercise,
-                              child: Text(
-                                exercise,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF424242),
-                                  fontSize: 16,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            if (value != null) _onExerciseSelected(value);
+                        child: InkWell(
+                          onTap: () {
+                            _showExerciseSelectionModal(context, (selected) {
+                              _onExerciseSelected(selected);
+                            });
                           },
-                          icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF00ACC1)),
-                          dropdownColor: Colors.white,
                           borderRadius: BorderRadius.circular(24),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: '種目を選択',
+                              labelStyle: const TextStyle(
+                                color: Color(0xFF00ACC1),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                letterSpacing: 1.0,
+                              ),
+                              floatingLabelBehavior: FloatingLabelBehavior.always,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                              fillColor: Colors.white,
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
+                              ),
+                              suffixIcon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF00ACC1)),
+                            ),
+                            child: _selectedExercise != null 
+                              ? Row(
+                                  children: [
+                                    Image.asset(
+                                      'image/icons/$_selectedExercise.png',
+                                      width: 20,
+                                      height: 20,
+                                      errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 18, color: Colors.grey.shade400),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _selectedExercise!,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 16),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const Text('種目を選択してください'),
+                          ),
                         ),
                       ),
                     ), // ここでPaddingを閉じ、コンマを追加
@@ -522,10 +772,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: const Color(0xFF00ACC1).withValues(alpha: 0.15),
+                          width: 1.5,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 16,
+                            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                            blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
                         ],

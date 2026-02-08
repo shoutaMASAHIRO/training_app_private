@@ -1,5 +1,7 @@
 import 'package:fitness_app/progress_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:collection/collection.dart';
 import 'package:fitness_app/logs_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -7,6 +9,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 import 'package:fitness_app/models/custom_program.dart';
+import 'package:fitness_app/models/workout_log.dart';
 
 class HomeScreen extends StatefulWidget {
   final int? initialIndex;
@@ -18,11 +21,43 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  bool _imagesPrecached = false; // 重複キャッシュ防止フラグ
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex ?? 0;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 全ての種目アイコンをプリキャッシュして遷移をスムーズにする
+    if (!_imagesPrecached) {
+      _precacheImages();
+      _imagesPrecached = true;
+    }
+  }
+
+  void _precacheImages() {
+    final exercises = [
+      'バックスクワット', 'フロントスクワット', 'ボックススクワット', 'スミススクワット', 'ゴブレッドスクワット',
+      'ブルガリアンスクワット', 'ハックスクワット', 'レッグプレス', 'レッグエクステンション',
+      'コンベンショナルデッドリフト', 'スモウデッドリフト', 'ルーマニアンデッドリフト', 'スティフレッグデッドリフト',
+      'グッドモーニング', 'ヒップスラスト', 'レッグカール', 'カーフレイズ', 'シーテッドカーフレイズ',
+      'ドンキーカーフレイズ', 'バーベルベンチプレス', 'ナローバーベルベンチプレス', 'インクラインベンチプレス',
+      'ダンベルプレス', 'インクラインダンベルプレス', 'ディップス', 'ペックフライ',
+      'インクラインダンベルフライ', 'ケーブルフライ', 'ダンベルプルオーバー', 'ラットプルダウン',
+      'プルアップ', 'インバーテッドロー', 'Tバーロー', 'ワンハンドロー', 'バーベルショルダープレス',
+      'ダンベルショルダープレス', 'サイドレイズ', 'フロントレイズ', 'バーベルカール', 'ダンベルカール',
+      'プリーチャーカール', 'ケーブルカール', 'JMプレス', 'バーベルエクステンション',
+      'ケーブルエクステンション', 'ケーブルプレスダウン', 'キックバック', 'バーベルリストカール',
+      'ダンベルリストカール', 'ケーブルリストカール'
+    ];
+
+    for (var name in exercises) {
+      precacheImage(AssetImage('image/icons/$name.png'), context);
+    }
   }
 
   void _onItemTapped(int index) {
@@ -37,7 +72,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final List<Widget> widgetOptions = <Widget>[
       const DashboardScreen(),
-      const WorkoutsScreen(),
+      const MenuTabScreen(), // リネーム
+      const ProgramsScreen(),
       const ProgressScreen(),
       const LogsScreen(),
     ];
@@ -80,7 +116,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.fitness_center_rounded),
-            label: 'Workouts',
+            label: 'Menu',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.assignment_rounded),
+            label: 'Programs',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart_rounded),
@@ -803,13 +843,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      exercise,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w900,
-                                        color: Color(0xFF212121),
-                                      ),
+                                    Row(
+                                      children: [
+                                        Image.asset(
+                                          'image/icons/$exercise.png',
+                                          width: 24,
+                                          height: 24,
+                                          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            exercise,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w900,
+                                              color: Color(0xFF212121),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     const SizedBox(height: 8),
                                     ...sets.map((setInfo) {
@@ -1025,15 +1078,772 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// --- Workouts Screen (New) ---
-class WorkoutsScreen extends StatefulWidget {
-  const WorkoutsScreen({super.key});
+// --- Menu Tab Screen ---
+class MenuTabScreen extends StatefulWidget {
+  const MenuTabScreen({super.key});
 
   @override
-  State<WorkoutsScreen> createState() => _WorkoutsScreenState();
+  State<MenuTabScreen> createState() => _MenuTabScreenState();
 }
 
-class _WorkoutsScreenState extends State<WorkoutsScreen> {
+class _MenuTabScreenState extends State<MenuTabScreen> {
+  // 候補となる種目リスト（カテゴリ別）
+  static const Map<String, List<String>> _categorizedExercises = {
+    '脚（前）': [
+      'バックスクワット',
+      'フロントスクワット',
+      'ボックススクワット',
+      'スミススクワット',
+      'ゴブレッドスクワット',
+      'ブルガリアンスクワット',
+      'ハックスクワット',
+      'レッグプレス',
+      'レッグエクステンション',
+    ],
+    '脚（後）': [
+      'コンベンショナルデッドリフト',
+      'スモウデッドリフト',
+      'ルーマニアンデッドリフト',
+      'スティフレッグデッドリフト',
+      'グッドモーニング',
+      'ヒップスラスト',
+      'レッグカール',
+    ],
+    'ふくらはぎ': [
+      'カーフレイズ',
+      'シーテッドカーフレイズ',
+      'ドンキーカーフレイズ',
+    ],
+    '胸': [
+      'バーベルベンチプレス',
+      'ナローバーベルベンチプレス',
+      'インクラインベンチプレス',
+      'ダンベルプレス',
+      'インクラインダンベルプレス',
+      'ディップス',
+      'ペックフライ',
+      'インクラインダンベルフライ',
+      'ケーブルフライ',
+      'ダンベルプルオーバー',
+    ],
+    '背中': [
+      'ラットプルダウン',
+      'プルアップ',
+      'インバーテッドロー',
+      'Tバーロー',
+      'ワンハンドロー',
+    ],
+    '肩': [
+      'バーベルショルダープレス',
+      'ダンベルショルダープレス',
+      'サイドレイズ',
+      'フロントレイズ',
+    ],
+    '二頭筋': [
+      'バーベルカール',
+      'ダンベルカール',
+      'プリーチャーカール',
+      'ケーブルカール',
+    ],
+    '三頭筋': [
+      'JMプレス',
+      'バーベルエクステンション',
+      'ケーブルエクステンション',
+      'ケーブルプレスダウン',
+      'キックバック',
+    ],
+    '前腕': [
+      'バーベルリストカール',
+      'ダンベルリストカール',
+      'ケーブルリストカール',
+    ],
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      itemCount: _categorizedExercises.length,
+      itemBuilder: (context, index) {
+        final category = _categorizedExercises.keys.elementAt(index);
+        final exercises = _categorizedExercises[category]!;
+        
+        return Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            maintainState: false, // 閉じている時はウィジェットを破棄して軽量化
+            tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+            childrenPadding: const EdgeInsets.only(bottom: 16),
+            initiallyExpanded: index == 0, // 最初のカテゴリだけ最初から開いておく
+            title: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00ACC1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    category,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF424242),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${exercises.length}',
+                    style: const TextStyle(
+                      color: Color(0xFF00ACC1),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            collapsedIconColor: const Color(0xFF00ACC1),
+            iconColor: const Color(0xFF00ACC1),
+            children: [
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.7, // 1.1 -> 0.7 to provide more vertical space
+                ),
+                itemCount: exercises.length,
+                itemBuilder: (context, exIndex) {
+                  final exercise = exercises[exIndex];
+                  return _buildExerciseCard(exercise);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildExerciseCard(String name) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.15), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.pushNamed(
+              context,
+              '/exercise_detail',
+              arguments: {'exerciseName': name},
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Image.asset(
+                    'image/icons/$name.png',
+                    width: 128,
+                    height: 128,
+                    fit: BoxFit.contain,
+                    cacheWidth: 256,
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('IMAGE LOAD ERROR: Failed to load image/icons/$name.png - Error: $error');
+                      return const Icon(
+                        Icons.fitness_center,
+                        size: 32,
+                        color: Colors.black12,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF424242),
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- Exercise Detail Screen ---
+class ExerciseDetailScreen extends StatefulWidget {
+  final String exerciseName;
+  const ExerciseDetailScreen({super.key, required this.exerciseName});
+
+  @override
+  State<ExerciseDetailScreen> createState() => _ExerciseDetailScreenState();
+}
+
+class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
+  final DatabaseService _dbService = DatabaseService();
+  bool _isLoading = true;
+  double? _prWeight;
+  List<WorkoutLog> _history = [];
+  Map<DateTime, double> _dailyWeights = {};
+  int _selectedIndex = 1; // Default to 'Menu' as it's the entry point
+  int? _touchedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchExerciseData();
+  }
+
+  void _onItemTapped(int index) {
+    if (_selectedIndex == index) return;
+    setState(() { _selectedIndex = index; });
+    
+    switch (index) {
+      case 0: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 0}); break;
+      case 1: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1}); break;
+      case 2: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2}); break;
+      case 3: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3}); break;
+      case 4: Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 4}); break;
+    }
+  }
+
+  List<FlSpot> _generateChartData() {
+    final List<FlSpot> spots = [];
+    final sortedDates = _dailyWeights.keys.toList()..sort();
+    for (int i = 0; i < sortedDates.length; i++) {
+      spots.add(FlSpot(i.toDouble(), _dailyWeights[sortedDates[i]]!));
+    }
+    return spots;
+  }
+
+  List<DateTime> _getSortedDates() {
+    return _dailyWeights.keys.sorted((a, b) => a.compareTo(b)).toList();
+  }
+
+  Widget _buildChart(List<FlSpot> spots, List<DateTime> sortedDates, ColorScheme colorScheme) {
+    if (spots.isEmpty) return const SizedBox.shrink();
+    
+    final weights = spots.map((s) => s.y).toList();
+    final minWeight = weights.min;
+    final maxWeight = weights.max;
+    
+    double minY = (minWeight - 10).clamp(0, double.infinity);
+    minY = (minY / 10).floor() * 10.0;
+    double maxY = (maxWeight + 10);
+    maxY = (maxY / 10).ceil() * 10.0;
+    if (maxY <= minY) maxY = minY + 20;
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 5,
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.1),
+              strokeWidth: 0.5,
+              dashArray: [5, 5],
+            );
+          },
+        ),
+        titlesData: FlTitlesData(
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 32,
+              interval: spots.length > 10 ? (spots.length / 5).ceil().toDouble() : 1,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < sortedDates.length) {
+                  return SideTitleWidget(
+                    meta: meta,
+                    child: Text(
+                      DateFormat('M/d').format(sortedDates[index]),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              interval: 5,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  '${value.toInt()}kg',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  ),
+                );
+              },
+            ),
+          ),
+          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            curveSmoothness: 0.3,
+            barWidth: 4,
+            color: const Color(0xFF00ACC1),
+            isStrokeCapRound: true,
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF00ACC1).withValues(alpha: 0.2),
+                  const Color(0xFF00ACC1).withValues(alpha: 0.0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                final isTouched = index == _touchedIndex;
+                return FlDotCirclePainter(
+                  radius: isTouched ? 6 : 4,
+                  color: isTouched ? const Color(0xFFFFB74D) : const Color(0xFF00ACC1),
+                  strokeWidth: 2,
+                  strokeColor: Colors.white,
+                );
+              },
+            ),
+          ),
+        ],
+        minX: 0,
+        maxX: spots.length > 1 ? (spots.length - 1).toDouble() : 1.0,
+        minY: minY,
+        maxY: maxY,
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchCallback: (FlTouchEvent event, LineTouchResponse? response) {
+            if (event is FlTapUpEvent || event is FlLongPressEnd) {
+              if (response != null && response.lineBarSpots != null && response.lineBarSpots!.isNotEmpty) {
+                setState(() { _touchedIndex = response.lineBarSpots!.first.spotIndex; });
+              }
+            }
+          },
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (touchedSpot) => const Color(0xFF00ACC1),
+            getTooltipItems: (List<LineBarSpot> touchedSpots) {
+              return touchedSpots.map((LineBarSpot touchedSpot) {
+                return LineTooltipItem(
+                  '${touchedSpot.y.toStringAsFixed(1)}kg',
+                  const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                );
+              }).toList();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatisticsSummary(List<FlSpot> spots, ColorScheme colorScheme, ThemeData theme) {
+    final weights = spots.map((s) => s.y).toList();
+    final minW = weights.min;
+    final maxW = weights.max;
+    final avgW = weights.reduce((a, b) => a + b) / weights.length;
+    final firstW = weights.first;
+    final lastW = weights.last;
+    final change = lastW - firstW;
+    
+    return Column(
+      children: [
+        const SizedBox(height: 24),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 1.8,
+          children: [
+            _buildStatTile('最小', minW.toStringAsFixed(1), 'kg', Icons.arrow_downward, theme),
+            _buildStatTile('最大', maxW.toStringAsFixed(1), 'kg', Icons.arrow_upward, theme),
+            _buildStatTile('平均', avgW.toStringAsFixed(1), 'kg', Icons.analytics_outlined, theme),
+            _buildStatTile('変化', '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}', 'kg', change >= 0 ? Icons.trending_up : Icons.trending_down, theme),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatTile(String label, String value, String unit, IconData icon, ThemeData theme) {
+    const color = Color(0xFF00ACC1);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.1), width: 1.5),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.grey.shade700)),
+              Icon(icon, color: color, size: 16),
+            ],
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF212121), fontFamily: 'monospace')),
+              const SizedBox(width: 2),
+              Text(unit, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchExerciseData() async {
+    try {
+      final logs = await _dbService.getLogs();
+      // この種目の記録（Max recordを含むもの）を抽出
+      final exerciseLogs = logs.where((log) {
+        return (log.sessionTitle == widget.exerciseName || log.menuTitle == widget.exerciseName) &&
+               (log.workoutDetails?.contains('Max record') ?? false);
+      }).toList();
+
+      exerciseLogs.sort((a, b) => a.completedDate.compareTo(b.completedDate));
+
+      double? maxWeight;
+      for (var log in exerciseLogs) {
+        if (log.workoutDetails != null && log.workoutDetails!.contains('@')) {
+          final regex = RegExp(r'@\s*(\d+(\.\d+)?)kg');
+          final match = regex.firstMatch(log.workoutDetails!);
+          if (match != null) {
+            final weight = double.tryParse(match.group(1)!);
+            if (weight != null) {
+              if (maxWeight == null || weight > maxWeight) {
+                maxWeight = weight;
+              }
+              final date = DateUtils.dateOnly(log.completedDate);
+              if (!_dailyWeights.containsKey(date) || weight > _dailyWeights[date]!) {
+                _dailyWeights[date] = weight;
+              }
+            }
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _prWeight = maxWeight;
+          _history = exerciseLogs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching exercise data: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.exerciseName),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // アイコン & PRカード
+                  _buildHeaderCard(),
+                  const SizedBox(height: 24),
+                  
+                  // グラフセクション
+                  _buildSectionTitle('進捗グラフ', Icons.show_chart),
+                  const SizedBox(height: 12),
+                  _buildChartContainer(),
+                  const SizedBox(height: 32),
+
+                  // 履歴セクション
+                  _buildSectionTitle('過去の記録', Icons.history),
+                  const SizedBox(height: 12),
+                  _buildHistoryList(),
+                ],
+              ),
+            ),
+      bottomNavigationBar: AppBottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
+    );
+  }
+
+  Widget _buildHeaderCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.15), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // 画像を中央に大きく表示
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Image.asset(
+              'image/icons/${widget.exerciseName}.png',
+              width: 192,
+              height: 192,
+              fit: BoxFit.contain,
+              cacheWidth: 384,
+              errorBuilder: (context, error, stackTrace) => const Icon(Icons.fitness_center, size: 96, color: Colors.black12),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // PR情報を表示
+          const Text(
+            'PERSONAL RECORD',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF00ACC1), letterSpacing: 1.0),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                _prWeight != null ? _prWeight!.toStringAsFixed(1) : '---',
+                style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: Color(0xFF212121), fontFamily: 'monospace'),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'kg',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final DateTime? picked = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2030),
+                );
+                if (picked != null && mounted) {
+                  Navigator.pushNamed(
+                    context,
+                    '/add_manual_log',
+                    arguments: {
+                      'selectedDate': picked,
+                      'exerciseName': widget.exerciseName,
+                    },
+                  ).then((_) => _fetchExerciseData());
+                }
+              },
+              icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white),
+              label: const Text(
+                '実績を登録する',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF424242), // ダークグレーに変更して画像とのコントラストを調整
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFF00ACC1), size: 20),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF424242)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChartContainer() {
+    if (_dailyWeights.isEmpty) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: const Center(
+          child: Text('データがありません', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+        ),
+      );
+    }
+
+    final spots = _generateChartData();
+    final sortedDates = _getSortedDates();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      children: [
+        Container(
+          height: 260,
+          padding: const EdgeInsets.fromLTRB(8, 16, 24, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.15), width: 1.5),
+            boxShadow: [BoxShadow(color: const Color(0xFF00ACC1).withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: _buildChart(spots, sortedDates, colorScheme),
+        ),
+        _buildStatisticsSummary(spots, colorScheme, Theme.of(context)),
+      ],
+    );
+  }
+
+  Widget _buildHistoryList() {
+    if (_history.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text('まだ記録がありません', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+      );
+    }
+
+    return Column(
+      children: _history.reversed.map((WorkoutLog log) {
+        String weight = '---';
+        if (log.workoutDetails != null && log.workoutDetails!.contains('@')) {
+          weight = log.workoutDetails!.split('@')[1].trim();
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade100),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                DateFormat('yyyy/MM/dd (E)', 'ja').format(log.completedDate),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161)),
+              ),
+              Text(
+                weight,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121), fontFamily: 'monospace'),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// --- Programs Screen ---
+class ProgramsScreen extends StatefulWidget {
+  const ProgramsScreen({super.key});
+
+  @override
+  State<ProgramsScreen> createState() => _ProgramsScreenState();
+}
+
+class _ProgramsScreenState extends State<ProgramsScreen> {
   final DatabaseService _dbService = DatabaseService();
   List<CustomProgram> _customPrograms = [];
   bool _isLoading = true;
@@ -1183,7 +1993,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
     },
     {
       'name': 'Westside Conjugate',
-      'description': '上級者向け: 最大努力と動的努力の組み合わせ',
+      'description': '上級者向け: 最大重量と動的重量の組み合わせ',
       'color': const Color(0xFF00ACC1),
       'icon': Icons.bolt,
     },
@@ -1596,19 +2406,162 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   late DateTime _startDate;
   final List<int> _selectedDays = [1, 3, 5]; // Default to Mon, Wed, Fri (1-7)
 
-  // 候補となる種目リスト
-  static const List<String> _exerciseOptions = [
-    'Benchpress',
-    'Squat',
-    'Weighted Pullup',
-    'Bulgarian Split Squat',
-  ];
+  // 候補となる種目リスト（カテゴリ別）
+  static const Map<String, List<String>> _categorizedExercises = {
+    '脚（前）': [
+      'バックスクワット',
+      'フロントスクワット',
+      'ボックススクワット',
+      'スミススクワット',
+      'ゴブレッドスクワット',
+      'ブルガリアンスクワット',
+      'ハックスクワット',
+      'レッグプレス',
+      'レッグエクステンション',
+    ],
+    '脚（後）': [
+      'コンベンショナルデッドリフト',
+      'スモウデッドリフト',
+      'ルーマニアンデッドリフト',
+      'スティフレッグデッドリフト',
+      'グッドモーニング',
+      'ヒップスラスト',
+      'レッグカール',
+    ],
+    'ふくらはぎ': [
+      'カーフレイズ',
+      'シーテッドカーフレイズ',
+      'ドンキーカーフレイズ',
+    ],
+    '胸': [
+      'バーベルベンチプレス',
+      'ナローバーベルベンチプレス',
+      'インクラインベンチプレス',
+      'ダンベルプレス',
+      'インクラインダンベルプレス',
+      'ディップス',
+      'ペックフライ',
+      'インクラインダンベルフライ',
+      'ケーブルフライ',
+      'ダンベルプルオーバー',
+    ],
+    '背中': [
+      'ラットプルダウン',
+      'プルアップ',
+      'インバーテッドロー',
+      'Tバーロー',
+      'ワンハンドロー',
+    ],
+    '肩': [
+      'バーベルショルダープレス',
+      'ダンベルショルダープレス',
+      'サイドレイズ',
+      'フロントレイズ',
+    ],
+    '二頭筋': [
+      'バーベルカール',
+      'ダンベルカール',
+      'プリーチャーカール',
+      'ケーブルカール',
+    ],
+    '三頭筋': [
+      'JMプレス',
+      'バーベルエクステンション',
+      'ケーブルエクステンション',
+      'ケーブルプレスダウン',
+      'キックバック',
+    ],
+    '前腕': [
+      'バーベルリストカール',
+      'ダンベルリストカール',
+      'ケーブルリストカール',
+    ],
+  };
+
+  // 全ての種目をフラットなリストとしても保持
+  static final List<String> _allExercises = _categorizedExercises.values.expand((e) => e).toList();
 
   // 編集用の種目リスト
   List<Map<String, dynamic>> _editableExercises = [];
 
   // 有名プログラム用の複数種目入力管理 (動的リスト)
   List<Map<String, dynamic>> _programExercises = [];
+
+  List<DropdownMenuItem<String>> _buildDropdownItems(Color themeColor) {
+    List<DropdownMenuItem<String>> items = [];
+    _categorizedExercises.forEach((category, exercises) {
+      items.add(DropdownMenuItem(
+        value: category,
+        enabled: false,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            '--- $category ---',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: themeColor.withValues(alpha: 0.6),
+              fontSize: 11,
+            ),
+          ),
+        ),
+      ));
+      for (var exercise in exercises) {
+        items.add(DropdownMenuItem(
+          value: exercise,
+          child: Row(
+            children: [
+              Image.asset(
+                'image/icons/$exercise.png',
+                width: 24,
+                height: 24,
+                errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 20, color: Colors.grey.shade400),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  exercise,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ));
+      }
+    });
+    return items;
+  }
+
+  List<Widget> _buildSelectedItems() {
+    List<Widget> selectedWidgets = [];
+    _categorizedExercises.forEach((category, exercises) {
+      selectedWidgets.add(Text(category));
+      for (var exercise in exercises) {
+        selectedWidgets.add(
+          Row(
+            children: [
+              Image.asset(
+                'image/icons/$exercise.png',
+                width: 20,
+                height: 20,
+                errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 18, color: Colors.grey.shade400),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  exercise,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          )
+        );
+      }
+    });
+    return selectedWidgets;
+  }
 
   @override
   void initState() {
@@ -1686,7 +2639,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   void _addExercise() {
     setState(() {
       _editableExercises.add({
-        'name': _exerciseOptions.first,
+        'name': _allExercises.first,
         'sets_count': 3,
         'sets_data': List.generate(3, (index) => {
           'weight': TextEditingController(text: '0.0'),
@@ -1728,6 +2681,133 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     });
   }
 
+  Future<void> _showExerciseSelectionModal(BuildContext context, Function(String) onSelect) async {
+    FocusScope.of(context).unfocus();
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.pop(context),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) {
+              return GestureDetector(
+                onTap: () {}, // コンテンツ内タップで閉じないようにする
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2.5),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text(
+                          '種目を選択',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            color: Colors.grey[800]
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.only(bottom: 30),
+                                                    children: _categorizedExercises.entries.map((entry) {
+                                                      return Theme(
+                                                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                                        child: ExpansionTile(
+                                                          maintainState: false, // 軽量化
+                                                          title: Row(
+                                                            children: [
+                                                              Expanded(
+                                                                child: Text(
+                                                                  entry.key,
+                                                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF424242)),
+                                                                ),
+                                                              ),
+                                                              Container(
+                                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                                decoration: BoxDecoration(
+                                                                  color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                                                                  borderRadius: BorderRadius.circular(10),
+                                                                ),
+                                                                child: Text(
+                                                                  '${entry.value.length}',
+                                                                  style: const TextStyle(
+                                                                    color: Color(0xFF00ACC1),
+                                                                    fontSize: 11,
+                                                                    fontWeight: FontWeight.w900,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          collapsedIconColor: const Color(0xFF00ACC1),
+                                                          iconColor: const Color(0xFF00ACC1),
+                                                          children: entry.value.map((exercise) {
+                                                            return ListTile(
+                                                              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                                                              leading: Container(
+                                                                padding: const EdgeInsets.all(8),
+                                                                decoration: BoxDecoration(
+                                                                  color: Colors.grey[50],
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                ),
+                                                                child: Image.asset(
+                                                                  'image/icons/$exercise.png',
+                                                                  width: 96,
+                                                                  height: 96,
+                                                                  fit: BoxFit.contain,
+                                                                  cacheWidth: 150, // 192 -> 150 (さらに軽量化)
+                                                                  errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 48, color: Colors.grey.shade400),
+                                                                ),
+                                                              ),
+                                    title: Text(
+                                      exercise,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF424242)),
+                                    ),
+                                    onTap: () {
+                                      onSelect(exercise);
+                                      Navigator.pop(context);
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
 
@@ -1739,14 +2819,17 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       case 0: // Dashboard
         Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 0});
         break;
-      case 1: // Workouts
+      case 1: // Menu
         Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1});
         break;
-      case 2: // Progress
+      case 2: // Programs
         Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2});
         break;
-      case 3: // Logs
+      case 3: // Progress
         Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3});
+        break;
+      case 4: // Logs
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 4});
         break;
     }
   }
@@ -2944,14 +4027,30 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(20.0),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Image.asset(
+                                        'image/icons/${ex['name']}.png',
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.contain,
+                                        cacheWidth: 200,
+                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
                                     Text(
                                       ex['name'],
                                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
                                     ),
                                     const SizedBox(height: 8),
                                     Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         const Icon(Icons.fitness_center, color: Color(0xFF424242), size: 18),
                                         const SizedBox(width: 10),
@@ -2988,6 +4087,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               _buildRegisterButton(_registerStrongLiftsProgram),
             ],
           ),
+        ),
+        bottomNavigationBar: AppBottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
         ),
       );
     }
@@ -3135,14 +4238,30 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(20.0),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Image.asset(
+                                        'image/icons/${ex['name']}.png',
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.contain,
+                                        cacheWidth: 200,
+                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
                                     Text(
                                       ex['name'],
                                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
                                     ),
                                     const SizedBox(height: 8),
                                     Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         const Icon(Icons.fitness_center, color: Color(0xFF424242), size: 18),
                                         const SizedBox(width: 10),
@@ -3179,6 +4298,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               _buildRegisterButton(_registerTexasMethodProgram),
             ],
           ),
+        ),
+        bottomNavigationBar: AppBottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
         ),
       );
     }
@@ -3327,14 +4450,30 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(20.0),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Image.asset(
+                                        'image/icons/${ex['name']}.png',
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.contain,
+                                        cacheWidth: 200,
+                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
                                     Text(
                                       ex['name'],
                                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
                                     ),
                                     const SizedBox(height: 8),
                                     Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         const Icon(Icons.fitness_center, color: Color(0xFF424242), size: 18),
                                         const SizedBox(width: 10),
@@ -3371,6 +4510,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
               _buildRegisterButton(() => _registerTemplateProgram(widget.workoutName)),
             ],
           ),
+        ),
+        bottomNavigationBar: AppBottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
         ),
       );
     }
@@ -4174,47 +5317,106 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           ),
         ],
       ),
-      child: DropdownButtonFormField<String>(
-        value: _exerciseKindController.text.isNotEmpty && _exerciseOptions.contains(_exerciseKindController.text)
-            ? _exerciseKindController.text
-            : null,
-        decoration: InputDecoration(
-          hintText: '種目を選択してください',
-          hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          fillColor: Colors.white,
-          filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide(color: themeColor, width: 2),
-          ),
-        ),
-        items: _exerciseOptions.map((String value) {
-          return DropdownMenuItem<String>(
-            value: value,
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242)),
-            ),
-          );
-        }).toList(),
-        onChanged: (String? newValue) {
-          setState(() {
-            _exerciseKindController.text = newValue ?? '';
+      child: InkWell(
+        onTap: () {
+          _showExerciseSelectionModal(context, (selected) {
+            setState(() {
+              _exerciseKindController.text = selected;
+            });
           });
         },
-        icon: Icon(Icons.keyboard_arrow_down_rounded, color: themeColor),
-        dropdownColor: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        child: InputDecorator(
+          decoration: InputDecoration(
+            hintText: '種目を選択してください',
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            fillColor: Colors.white,
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: themeColor, width: 2),
+            ),
+          ),
+          child: _exerciseKindController.text.isNotEmpty
+            ? Column(
+                children: [
+                  const SizedBox(height: 16),
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: themeColor.withValues(alpha: 0.05),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: themeColor.withValues(alpha: 0.1), width: 2),
+                        ),
+                        child: Image.asset(
+                          'image/icons/${_exerciseKindController.text}.png',
+                          width: 144,
+                          height: 144,
+                          fit: BoxFit.contain,
+                          cacheWidth: 288,
+                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: themeColor,
+                          shape: BoxShape.circle,
+                          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                        ),
+                        child: const Icon(Icons.sync_rounded, color: Colors.white, size: 24),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _exerciseKindController.text,
+                            style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF212121), fontSize: 18),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.touch_app_rounded, color: themeColor, size: 18),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'タップして種目を変更',
+                    style: TextStyle(color: themeColor, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              )
+            : Text(
+                '種目を選択してください',
+                style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal, fontSize: 16),
+              ),
+        ),
       ),
     );
   }
@@ -4261,36 +5463,101 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                             ),
                           ],
                         ),
-                        child: DropdownButtonFormField<String>(
-                          value: _exerciseOptions.contains(ex['name']) ? ex['name'] : _exerciseOptions.first,
-                          decoration: InputDecoration(
-                            labelText: '種目',
-                            labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
-                            floatingLabelBehavior: FloatingLabelBehavior.always,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                            fillColor: Colors.white,
-                            filled: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                        child: InkWell(
+                          onTap: () {
+                            _showExerciseSelectionModal(context, (selected) {
+                              setState(() {
+                                ex['name'] = selected;
+                              });
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: '種目',
+                              labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
+                              floatingLabelBehavior: FloatingLabelBehavior.always,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                              fillColor: Colors.white,
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(color: themeColor, width: 2),
+                              ),
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: themeColor, width: 2),
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 16),
+                                Stack(
+                                  alignment: Alignment.bottomRight,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: themeColor.withValues(alpha: 0.05),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: themeColor.withValues(alpha: 0.1), width: 2),
+                                      ),
+                                      child: Image.asset(
+                                        'image/icons/${ex['name']}.png',
+                                        width: 144,
+                                        height: 144,
+                                        fit: BoxFit.contain,
+                                        cacheWidth: 288,
+                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: themeColor,
+                                        shape: BoxShape.circle,
+                                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                                      ),
+                                      child: const Icon(Icons.sync_rounded, color: Colors.white, size: 24),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          ex['name'],
+                                          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF212121), fontSize: 18),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(Icons.touch_app_rounded, color: themeColor, size: 18),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'タップして種目を変更',
+                                  style: TextStyle(color: themeColor, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
                             ),
                           ),
-                          items: _exerciseOptions.map((e) => DropdownMenuItem(
-                            value: e, 
-                            child: Text(e, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242))),
-                          )).toList(),
-                          onChanged: (val) => setState(() => ex['name'] = val),
-                          icon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
-                          dropdownColor: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -4413,53 +5680,85 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.15), width: 1.5),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
           children: [
-            Container(
-              width: 4,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF00ACC1),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Week $week',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00ACC1),
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  Text(
-                    week == 4 ? 'Deload' : 'Main Set',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '${day['reps'].toString().replaceAll('+', '～限界')}x${day['sets']} @ ${day['weight']}kg',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF00ACC1),
-                  fontSize: 15,
                 ),
-              ),
+                const SizedBox(width: 12),
+                Text(
+                  'Week $week',
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF212121)),
+                ),
+                const Spacer(),
+                Text(
+                  week == 4 ? 'Deload' : 'Main Set',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const Divider(height: 32),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Image.asset(
+                    'image/icons/${_exerciseKindController.text}.png',
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.contain,
+                    cacheWidth: 160,
+                    errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 40, color: Colors.grey.shade400),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _exerciseKindController.text,
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF424242)),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${day['reps'].toString().replaceAll('+', '～限界')}x${day['sets']} @ ${day['weight']}kg',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF00ACC1),
+                            fontSize: 16,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -4474,13 +5773,13 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 24),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.15), width: 1.5),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -4501,39 +5800,68 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                     Text(
                       'Week $week',
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF424242),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF212121),
                       ),
                     ),
                   ],
                 ),
                 if (increase > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       '+${increase.toStringAsFixed(1)}kg',
                       style: const TextStyle(
                         color: Color(0xFF00ACC1),
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w900,
                         fontSize: 12,
                       ),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 20),
+            
+            // 種目アイコン表示
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                  shape: BoxShape.circle,
+                ),
+                child: Image.asset(
+                  'image/icons/${_exerciseKindController.text}.png',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.contain,
+                  cacheWidth: 160,
+                  errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 40, color: Colors.grey.shade400),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                _exerciseKindController.text,
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF424242)),
+              ),
+            ),
+            const Divider(height: 32),
+
             // 日ごとの詳細
             ...days.map((day) => Container(
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
                 color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.03)),
               ),
               child: Row(
                 children: [
@@ -4543,7 +5871,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                       'Day ${day['day']}',
                       style: TextStyle(
                         color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w900,
                         fontSize: 13,
                       ),
                     ),
@@ -4557,8 +5885,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                     child: Text(
                       '${day['reps']}x${day['sets']}',
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF00ACC1),
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF00ACC1),
                         fontSize: 13,
                       ),
                     ),
@@ -4568,6 +5896,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                     '${day['percent']}%',
                     style: TextStyle(
                       color: Colors.grey.shade500,
+                      fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
                   ),
@@ -4575,9 +5904,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                   Text(
                     '${(day['weight'] as double).toStringAsFixed(1)}kg',
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF424242),
-                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF212121),
+                      fontSize: 17,
+                      fontFamily: 'monospace',
                     ),
                   ),
                 ],
@@ -4763,15 +6093,6 @@ class _ScheduleCard extends StatelessWidget {
     // 今日の日付かどうかを判定
     final isToday = DateUtils.dateOnly(schedule.scheduledDate) == DateUtils.dateOnly(DateTime.now());
 
-    // 種目名から最適なアイコンを返す
-    IconData _getExerciseIcon(String name) {
-      final lowercaseName = name.toLowerCase();
-      if (lowercaseName.contains('squat')) return Icons.accessibility_new_rounded;
-      if (lowercaseName.contains('bench')) return Icons.horizontal_rule_rounded;
-      if (lowercaseName.contains('deadlift')) return Icons.vertical_align_top_rounded;
-      return Icons.fitness_center_rounded;
-    }
-
     // カスタム詳細を表示用に整形
     Widget buildCustomDetails(String details) {
       if (details.isEmpty) return const SizedBox.shrink();
@@ -4800,7 +6121,14 @@ class _ScheduleCard extends StatelessWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Icon(_getExerciseIcon(exercise), color: const Color(0xFF00ACC1), size: 18),
+                      child: Image.asset(
+                        'image/icons/$exercise.png',
+                        width: 96,
+                        height: 96,
+                        fit: BoxFit.contain,
+                        cacheWidth: 192,
+                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.fitness_center, color: Color(0xFF00ACC1), size: 32),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -5009,7 +6337,11 @@ class AppBottomNavigationBar extends StatelessWidget {
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.fitness_center_rounded),
-          label: 'Workouts',
+          label: 'Menu',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.assignment_rounded),
+          label: 'Programs',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.bar_chart_rounded),

@@ -162,18 +162,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : SizedBox(
-                        height: 50,
+                        height: 64, // 高さを増やしてゆとりを持たせる
                         child: ElevatedButton(
                           onPressed: _login,
                           style: ElevatedButton.styleFrom(
                              backgroundColor: const Color(0xFF00E5FF),
+                             padding: const EdgeInsets.symmetric(horizontal: 32), // 横パディングを追加
+                             shape: RoundedRectangleBorder(
+                               borderRadius: BorderRadius.circular(16),
+                             ),
                           ),
                           child: const Text(
                             'SIGN IN',
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
                               color: Colors.white,
+                              letterSpacing: 1.2,
                             ),
                           ),
                         ),

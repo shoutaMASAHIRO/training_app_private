@@ -163,9 +163,16 @@ class FitnessApp extends StatelessWidget {
         },
         '/add_manual_log': (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
-          return AddManualLogScreen(selectedDate: args?['selectedDate'] as DateTime?);
+          return AddManualLogScreen(
+            selectedDate: args?['selectedDate'] as DateTime?,
+            exerciseName: args?['exerciseName'] as String?,
+          );
         },
         '/create_custom_menu': (context) => const CreateCustomMenuScreen(),
+        '/exercise_detail': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return ExerciseDetailScreen(exerciseName: args['exerciseName'] as String);
+        },
       },
     );
   }

@@ -113,13 +113,28 @@ class _TodayWorkoutListItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  exercise,
-                  style: const TextStyle(
-                    fontSize: 22, // Match sessionTitle size
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF00ACC1),
-                  ),
+                Row(
+                  children: [
+                    Image.asset(
+                      'image/icons/$exercise.png',
+                      width: 112,
+                      height: 112,
+                      fit: BoxFit.contain,
+                      cacheWidth: 224,
+                      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                    ),
+                    const SizedBox(width: 24), // 16 -> 24
+                    Expanded(
+                      child: Text(
+                        exercise,
+                        style: const TextStyle(
+                          fontSize: 22, // Match sessionTitle size
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF00ACC1),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Row(

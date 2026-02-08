@@ -200,10 +200,23 @@ class _SignupScreenState extends State<SignupScreen> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : SizedBox(
-                        height: 50,
+                        height: 64, // 高さを増やしてゆとりを持たせる
                         child: ElevatedButton(
                           onPressed: _signup,
-                          child: const Text('Sign Up'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 32), // 横パディングを追加
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
                         ),
                       ),
               ],
