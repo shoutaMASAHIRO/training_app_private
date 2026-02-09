@@ -1,5 +1,6 @@
 import 'package:fitness_app/progress_screen.dart';
 import 'package:flutter/material.dart';
+import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:collection/collection.dart';
 import 'package:fitness_app/logs_screen.dart';
@@ -426,6 +427,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                   child: TableCalendar(
+                    locale: 'ja_JP',
                     firstDay: DateTime.utc(2020, 1, 1),
                     lastDay: DateTime.utc(2030, 12, 31),
                     focusedDay: _focusedDay,
@@ -459,11 +461,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
                       weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
                     ),
-                    calendarStyle: const CalendarStyle(
-                      defaultTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
-                      todayDecoration: BoxDecoration(
+                    calendarStyle: CalendarStyle(
+                      defaultTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      weekendTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      outsideTextStyle: const TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                      todayDecoration: const BoxDecoration(
                         color: Colors.white12, // さらに控えめに
                         shape: BoxShape.circle,
                       ),
@@ -472,14 +474,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         fontWeight: FontWeight.w900,
                       ),
                       selectedDecoration: BoxDecoration(
-                        color: Colors.transparent, // 塗りつぶしを廃止
-                        shape: BoxShape.circle,
-                        border: Border.fromBorderSide(
-                          BorderSide(color: Colors.white, width: 2), // 太めの白い枠線に変更
-                        ),
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                      markerDecoration: BoxDecoration(
+                      selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                      markerDecoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
@@ -487,68 +486,100 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     calendarBuilders: CalendarBuilders(
                       selectedBuilder: (context, day, focusedDay) {
                         final isToday = isSameDay(day, DateTime.now());
-                        return Center(
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                        return Container(
+                          margin: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${day.day}',
+                              style: TextStyle(
+                                color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
                             ),
-                            child: Center(
-                              child: Text(
-                                '${day.day}',
-                                style: TextStyle(
-                                  color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                          ),
+                        );
+                      },
+                                              markerBuilder: (context, day, events) {
+                                                if (events.isEmpty) return const SizedBox.shrink();
+                                                
+                                                // 最大4つまでの星を表示
+                                                const maxStars = 4;
+                                                final starCount = min(events.length, maxStars);
+                                                final hasMore = events.length > maxStars;
+                      
+                                                return Positioned(
+                                                  bottom: 4,
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      ...List.generate(
+                                                        starCount,
+                                                        (index) => const Padding(
+                                                          padding: EdgeInsets.symmetric(horizontal: 0.5),
+                                                          child: Icon(
+                                                            Icons.stars_rounded,
+                                                            color: Colors.white,
+                                                            size: 13,
+                                                            shadows: [
+                                                              Shadow(
+                                                                blurRadius: 4.0,
+                                                                color: Colors.black26,
+                                                                offset: Offset(0, 1),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (hasMore)
+                                                        const Text(
+                                                          '+',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.bold,
+                                                            shadows: [
+                                                              Shadow(
+                                                                blurRadius: 4.0,
+                                                                color: Colors.black26,
+                                                                offset: Offset(0, 1),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                );
+                                              },                      headerTitleBuilder: (context, date) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                DateFormat('yyyy').format(date),
+                                style: const TextStyle(
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w900,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                      markerBuilder: (context, day, events) {
-                        if (events.isEmpty) return const SizedBox.shrink();
-
-                        // キャストしてWorkoutScheduleのリストとして扱う
-                        final schedules = events.cast<WorkoutSchedule>();
-                        
-                        // 失敗したスケジュールと完了したスケジュールを分ける
-                        // ※ダッシュボードでは「isCompleted == true かつ failCount > 0」を失敗とするなどのロジックが必要だが、
-                        // スケジュールデータには通常failCountがないため、ここではLogsの情報を参照するか、
-                        // あるいは「完了済みかつ失敗ログが存在するか」を判定する必要がある。
-                        // 一旦、ダッシュボードは「予定」を表示する場所なので、シンプルに表示を整える。
-                        
-                        return Positioned(
-                          bottom: 0,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: List.generate(
-                              events.length > 3 ? 3 : events.length, 
-                              (index) => Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 1.0),
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
                                   color: Colors.white,
+                                  letterSpacing: 1.5,
                                 ),
                               ),
-                            ),
-                          ),
-                        );
-                      },
-                      headerTitleBuilder: (context, date) {
-                        return Center(
-                          child: Text(
-                            DateFormat('MMMM yyyy').format(date).toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.0,
-                            ),
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('MMMM', 'ja').format(date),
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -1270,25 +1301,26 @@ class _MenuTabScreenState extends State<MenuTabScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 128,
+                  height: 128,
                   decoration: BoxDecoration(
                     color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                     shape: BoxShape.circle,
                   ),
-                  child: Image.asset(
-                    'image/icons/$name.png',
-                    width: 128,
-                    height: 128,
-                    fit: BoxFit.contain,
-                    cacheWidth: 256,
-                    errorBuilder: (context, error, stackTrace) {
-                      debugPrint('IMAGE LOAD ERROR: Failed to load image/icons/$name.png - Error: $error');
-                      return const Icon(
-                        Icons.fitness_center,
-                        size: 32,
-                        color: Colors.black12,
-                      );
-                    },
+                  child: ClipOval(
+                    child: Image.asset(
+                      'image/icons/$name.png',
+                      fit: BoxFit.cover,
+                      cacheWidth: 256,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint('IMAGE LOAD ERROR: Failed to load image/icons/$name.png - Error: $error');
+                        return const Icon(
+                          Icons.fitness_center,
+                          size: 32,
+                          color: Colors.black12,
+                        );
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1564,6 +1596,170 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
     );
   }
 
+  Future<void> _showCalendarDialog(BuildContext context) async {
+    DateTime focusedDay = DateTime.now();
+    DateTime? selectedDay = DateTime.now();
+
+    final DateTime? picked = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF26C6DA), Color(0xFF00ACC1)],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TableCalendar(
+                  locale: 'ja_JP',
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2030, 12, 31),
+                  focusedDay: focusedDay,
+                  calendarFormat: CalendarFormat.month,
+                  selectedDayPredicate: (day) => isSameDay(selectedDay, day),
+                  onDaySelected: (sDay, fDay) {
+                    setState(() {
+                      selectedDay = sDay;
+                      focusedDay = fDay;
+                    });
+                  },
+                  headerStyle: const HeaderStyle(
+                    titleCentered: true,
+                    formatButtonVisible: false,
+                    titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
+                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+                  ),
+                  daysOfWeekStyle: const DaysOfWeekStyle(
+                    weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                    weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                  ),
+                  calendarStyle: CalendarStyle(
+                    defaultTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    weekendTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    outsideTextStyle: const TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                    todayDecoration: const BoxDecoration(
+                      color: Colors.white12,
+                      shape: BoxShape.circle,
+                    ),
+                    todayTextStyle: const TextStyle(
+                      color: Colors.deepOrangeAccent,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    selectedDecoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                    markerDecoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  calendarBuilders: CalendarBuilders(
+                    selectedBuilder: (context, day, focusedDay) {
+                      final isToday = isSameDay(day, DateTime.now());
+                      return Container(
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    headerTitleBuilder: (context, date) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              DateFormat('yyyy').format(date),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('MMMM', 'ja').format(date),
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('キャンセル', style: TextStyle(color: Colors.white70)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, selectedDay),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF00ACC1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('選択', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    if (picked != null && mounted) {
+      Navigator.pushNamed(
+        context,
+        '/add_manual_log',
+        arguments: {
+          'selectedDate': picked,
+          'exerciseName': widget.exerciseName,
+        },
+      ).then((_) => _fetchExerciseData());
+    }
+  }
+
   Future<void> _fetchExerciseData() async {
     try {
       final logs = await _dbService.getLogs();
@@ -1664,18 +1860,19 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
         children: [
           // 画像を中央に大きく表示
           Container(
-            padding: const EdgeInsets.all(16),
+            width: 192,
+            height: 192,
             decoration: BoxDecoration(
               color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
-            child: Image.asset(
-              'image/icons/${widget.exerciseName}.png',
-              width: 192,
-              height: 192,
-              fit: BoxFit.contain,
-              cacheWidth: 384,
-              errorBuilder: (context, error, stackTrace) => const Icon(Icons.fitness_center, size: 96, color: Colors.black12),
+            child: ClipOval(
+              child: Image.asset(
+                'image/icons/${widget.exerciseName}.png',
+                fit: BoxFit.cover,
+                cacheWidth: 384,
+                errorBuilder: (context, error, stackTrace) => const Icon(Icons.fitness_center, size: 96, color: Colors.black12),
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -1706,24 +1903,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
             width: double.infinity,
             height: 60, // 56から60に変更
             child: ElevatedButton.icon(
-              onPressed: () async {
-                final DateTime? picked = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime(2030),
-                );
-                if (picked != null && mounted) {
-                  Navigator.pushNamed(
-                    context,
-                    '/add_manual_log',
-                    arguments: {
-                      'selectedDate': picked,
-                      'exerciseName': widget.exerciseName,
-                    },
-                  ).then((_) => _fetchExerciseData());
-                }
-              },
+              onPressed: () => _showCalendarDialog(context),
               icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white),
               label: const Text(
                 '実績を登録する',
@@ -3556,12 +3736,155 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   }
 
   Future<void> _selectStartDate() async {
-    final DateTime? picked = await showDatePicker(
+    DateTime focusedDay = _startDate;
+    DateTime? selectedDay = _startDate;
+
+    final DateTime? picked = await showDialog<DateTime>(
       context: context,
-      initialDate: _startDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF26C6DA), Color(0xFF00ACC1)],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TableCalendar(
+                  locale: 'ja_JP',
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2030, 12, 31),
+                  focusedDay: focusedDay,
+                  calendarFormat: CalendarFormat.month,
+                  selectedDayPredicate: (day) => isSameDay(selectedDay, day),
+                  onDaySelected: (sDay, fDay) {
+                    setState(() {
+                      selectedDay = sDay;
+                      focusedDay = fDay;
+                    });
+                  },
+                  headerStyle: const HeaderStyle(
+                    titleCentered: true,
+                    formatButtonVisible: false,
+                    titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
+                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+                  ),
+                  daysOfWeekStyle: const DaysOfWeekStyle(
+                    weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                    weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                  ),
+                  calendarStyle: CalendarStyle(
+                    defaultTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    weekendTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    outsideTextStyle: const TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                    todayDecoration: const BoxDecoration(
+                      color: Colors.white12,
+                      shape: BoxShape.circle,
+                    ),
+                    todayTextStyle: const TextStyle(
+                      color: Colors.deepOrangeAccent,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    selectedDecoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                  ),
+                  calendarBuilders: CalendarBuilders(
+                    selectedBuilder: (context, day, focusedDay) {
+                      final isToday = isSameDay(day, DateTime.now());
+                      return Container(
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    headerTitleBuilder: (context, date) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                DateFormat('yyyy').format(date),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('MMMM', 'ja').format(date),
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('キャンセル', style: TextStyle(color: Colors.white70)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, selectedDay),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF00ACC1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('選択', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
+
     if (picked != null && picked != _startDate) {
       setState(() {
         _startDate = DateUtils.dateOnly(picked);
@@ -4061,18 +4384,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                 child: Column(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(12),
+                                      width: 100,
+                                      height: 100,
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: Image.asset(
-                                        'image/icons/${ex['name']}.png',
-                                        width: 100,
-                                        height: 100,
-                                        fit: BoxFit.contain,
-                                        cacheWidth: 200,
-                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          'image/icons/${ex['name']}.png',
+                                          fit: BoxFit.cover,
+                                          cacheWidth: 200,
+                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -4272,18 +4596,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                 child: Column(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(12),
+                                      width: 100,
+                                      height: 100,
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: Image.asset(
-                                        'image/icons/${ex['name']}.png',
-                                        width: 100,
-                                        height: 100,
-                                        fit: BoxFit.contain,
-                                        cacheWidth: 200,
-                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          'image/icons/${ex['name']}.png',
+                                          fit: BoxFit.cover,
+                                          cacheWidth: 200,
+                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -4484,18 +4809,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                 child: Column(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(12),
+                                      width: 100,
+                                      height: 100,
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: Image.asset(
-                                        'image/icons/${ex['name']}.png',
-                                        width: 100,
-                                        height: 100,
-                                        fit: BoxFit.contain,
-                                        cacheWidth: 200,
-                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          'image/icons/${ex['name']}.png',
+                                          fit: BoxFit.cover,
+                                          cacheWidth: 200,
+                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 50, color: Colors.grey.shade400),
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
@@ -5387,19 +5713,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                     alignment: Alignment.bottomRight,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        width: 176,
+                        height: 176,
                         decoration: BoxDecoration(
                           color: themeColor.withValues(alpha: 0.05),
                           shape: BoxShape.circle,
-                          border: Border.all(color: themeColor.withValues(alpha: 0.1), width: 2),
                         ),
-                        child: Image.asset(
-                          'image/icons/${_exerciseKindController.text}.png',
-                          width: 144,
-                          height: 144,
-                          fit: BoxFit.contain,
-                          cacheWidth: 288,
-                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'image/icons/${_exerciseKindController.text}.png',
+                            fit: BoxFit.cover,
+                            cacheWidth: 352,
+                            errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                          ),
                         ),
                       ),
                       Container(
@@ -5532,19 +5858,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                   alignment: Alignment.bottomRight,
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(16),
+                                      width: 176,
+                                      height: 176,
                                       decoration: BoxDecoration(
                                         color: themeColor.withValues(alpha: 0.05),
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: themeColor.withValues(alpha: 0.1), width: 2),
                                       ),
-                                      child: Image.asset(
-                                        'image/icons/${ex['name']}.png',
-                                        width: 144,
-                                        height: 144,
-                                        fit: BoxFit.contain,
-                                        cacheWidth: 288,
-                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          'image/icons/${ex['name']}.png',
+                                          fit: BoxFit.cover,
+                                          cacheWidth: 352,
+                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                        ),
                                       ),
                                     ),
                                     Container(
@@ -5747,18 +6073,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 80,
+                  height: 80,
                   decoration: BoxDecoration(
                     color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                     shape: BoxShape.circle,
                   ),
-                  child: Image.asset(
-                    'image/icons/${_exerciseKindController.text}.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.contain,
-                    cacheWidth: 160,
-                    errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 40, color: Colors.grey.shade400),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'image/icons/${_exerciseKindController.text}.png',
+                      fit: BoxFit.cover,
+                      cacheWidth: 160,
+                      errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 40, color: Colors.grey.shade400),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 20),
@@ -5862,18 +6189,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             // 種目アイコン表示
             Center(
               child: Container(
-                padding: const EdgeInsets.all(12),
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                   shape: BoxShape.circle,
                 ),
-                child: Image.asset(
-                  'image/icons/${_exerciseKindController.text}.png',
-                  width: 80,
-                  height: 80,
-                  fit: BoxFit.contain,
-                  cacheWidth: 160,
-                  errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 40, color: Colors.grey.shade400),
+                child: ClipOval(
+                  child: Image.asset(
+                    'image/icons/${_exerciseKindController.text}.png',
+                    fit: BoxFit.cover,
+                    cacheWidth: 160,
+                    errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 40, color: Colors.grey.shade400),
+                  ),
                 ),
               ),
             ),

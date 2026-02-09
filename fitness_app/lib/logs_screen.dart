@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:fitness_app/services/database_service.dart';
@@ -142,6 +143,7 @@ class _LogsScreenState extends State<LogsScreen> {
                 ],
               ),
               child: TableCalendar(
+                locale: 'ja_JP',
                 firstDay: DateTime.utc(2020, 1, 1),
                 lastDay: DateTime.utc(2030, 12, 31),
                 focusedDay: _focusedDay,
@@ -177,157 +179,129 @@ class _LogsScreenState extends State<LogsScreen> {
                   weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
                   weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
                 ),
-                calendarStyle: const CalendarStyle(
-                  defaultTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
-                  todayDecoration: BoxDecoration(
-                    color: Colors.white12, // さらに控えめに
-                    shape: BoxShape.circle,
-                  ),
-                                                                                                            todayTextStyle: const TextStyle(
-                                                                                                              color: Colors.deepOrangeAccent,
-                                                                                                              fontWeight: FontWeight.w900,
-                                                                                                            ),
-                                                                                                            selectedDecoration: BoxDecoration(
-                                                                                                              color: Colors.transparent, // 塗りつぶしを透明に
-                                                                                                              shape: BoxShape.circle,
-                                                                                                              border: Border.fromBorderSide(
-                                                                                                                BorderSide(color: Colors.white, width: 2), // 太めの白い枠線に変更
-                                                                                                              ),
-                                                                                                            ),
-                                                                                                            selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                                                                                                            markerDecoration: BoxDecoration(
-                                                                                                              color: Colors.white,
-                                                                                                              shape: BoxShape.circle,
-                                                                                                            ),
-                                                                                                          ),
-                                                                                                          calendarBuilders: CalendarBuilders(
-                                                                                                            selectedBuilder: (context, day, focusedDay) {
-                                                                                                              final isToday = isSameDay(day, DateTime.now());
-                                                                                                              return Center(
-                                                                                                                child: Container(
-                                                                                                                  width: 32,
-                                                                                                                  height: 32,
-                                                                                                                  decoration: BoxDecoration(
-                                                                                                                    shape: BoxShape.circle,
-                                                                                                                    border: Border.all(color: Colors.white, width: 2),
-                                                                                                                  ),
-                                                                                                                  child: Center(
-                                                                                                                    child: Text(
-                                                                                                                      '${day.day}',
-                                                                                                                      style: TextStyle(
-                                                                                                                        color: isToday ? Colors.deepOrangeAccent : Colors.white,
-                                                                                                                        fontWeight: FontWeight.w900,
-                                                                                                                        fontSize: 13,
-                                                                                                                      ),
-                                                                                                                    ),
-                                                                                                                  ),
-                                                                                                                ),
-                                                                                                              );
-                                                                                                            },                      markerBuilder: (context, day, events) {
-                    if (events.isEmpty) return const SizedBox.shrink();
-
-                    // キャストしてWorkoutLogのリストとして扱う
-                    final logs = events.cast<WorkoutLog>();
-                    
-                    // 失敗したログと成功したログを分ける
-                    final failedLogs = logs.where((log) => (log.failCount ?? 0) > 0).toList();
-                    final successLogs = logs.where((log) => (log.failCount ?? 0) == 0).toList();
-
-                    // 表示用のマーカーリストを作成
-                    final List<Widget> allMarkers = [];
-
-                    // 失敗マーカーを追加
-                    for (var _ in failedLogs) {
-                      allMarkers.add(
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 1.0),
-                          child: SizedBox(
-                            width: 10,
-                            height: 10,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Transform.rotate(
-                                  angle: 0.785, // 45 degrees
-                                  child: Container(
-                                    width: 11,
-                                    height: 2.5,
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade400,
-                                      borderRadius: BorderRadius.circular(5),
+                                  calendarStyle: CalendarStyle(
+                                    defaultTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    weekendTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    outsideTextStyle: const TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                                    todayDecoration: const BoxDecoration(
+                                      color: Colors.white12, // さらに控えめに
+                                      shape: BoxShape.circle,
+                                    ),
+                                    todayTextStyle: const TextStyle(
+                                      color: Colors.deepOrangeAccent,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                    selectedDecoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                                    markerDecoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
                                     ),
                                   ),
-                                ),
-                                Transform.rotate(
-                                  angle: -0.785,
-                                  child: Container(
-                                    width: 11,
-                                    height: 2.5,
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade400,
-                                      borderRadius: BorderRadius.circular(5),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
+                                  calendarBuilders: CalendarBuilders(
+                                    selectedBuilder: (context, day, focusedDay) {
+                                      final isToday = isSameDay(day, DateTime.now());
+                                      return Container(
+                                        margin: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '${day.day}',
+                                            style: TextStyle(
+                                              color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    headerTitleBuilder: (context, date) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 0),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              DateFormat('yyyy').format(date),
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w900,
+                                                color: Colors.white,
+                                                letterSpacing: 1.5,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              DateFormat('MMMM', 'ja').format(date),
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                                height: 1.0,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    markerBuilder: (context, day, events) {
+                                      if (events.isEmpty) return const SizedBox.shrink();
+                                      
+                                      // 最大4つまでの星を表示
+                                      const maxStars = 4;
+                                      final starCount = min(events.length, maxStars);
+                                      final hasMore = events.length > maxStars;
 
-                    // 成功マーカーを追加
-                    for (var _ in successLogs) {
-                      allMarkers.add(
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 1.0),
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white,
-                          ),
-                        ),
-                      );
-                    }
-
-                    // 最大表示数を3に制限
-                    const int maxDisplay = 3;
-                    final displayMarkers = allMarkers.take(maxDisplay).toList();
-                    final remainingCount = allMarkers.length - maxDisplay;
-
-                    // 今日かどうかで位置を微調整 (今日だけ位置を下げる)
-                    final double bottomPosition = isSameDay(day, DateTime.now()) ? -4 : 0;
-
-                    return Positioned(
-                      bottom: bottomPosition,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ...displayMarkers,
-                          if (remainingCount > 0)
-                            Container(
-                              margin: const EdgeInsets.only(left: 2.0),
-                              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '+$remainingCount',
-                                style: const TextStyle(
-                                  color: Color(0xFF00ACC1),
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
+                                      return Positioned(
+                                        bottom: 4,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            ...List.generate(
+                                              starCount,
+                                              (index) => const Padding(
+                                                padding: EdgeInsets.symmetric(horizontal: 0.5),
+                                                child: Icon(
+                                                  Icons.stars_rounded,
+                                                  color: Colors.white,
+                                                  size: 13,
+                                                  shadows: [
+                                                    Shadow(
+                                                      blurRadius: 4.0,
+                                                      color: Colors.black26,
+                                                      offset: Offset(0, 1),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                            if (hasMore)
+                                              const Text(
+                                                '+',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  shadows: [
+                                                    Shadow(
+                                                      blurRadius: 4.0,
+                                                      color: Colors.black26,
+                                                      offset: Offset(0, 1),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      );
+                                    },
                 ),
               ),
             ),

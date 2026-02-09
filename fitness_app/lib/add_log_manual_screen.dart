@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_log.dart';
 import 'package:fitness_app/home_screen.dart';
@@ -331,12 +332,155 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
   }
 
   Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
+    DateTime focusedDay = _selectedDate;
+    DateTime? selectedDay = _selectedDate;
+
+    final DateTime? picked = await showDialog<DateTime>(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF26C6DA), Color(0xFF00ACC1)],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TableCalendar(
+                  locale: 'ja_JP',
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2030, 12, 31),
+                  focusedDay: focusedDay,
+                  calendarFormat: CalendarFormat.month,
+                  selectedDayPredicate: (day) => isSameDay(selectedDay, day),
+                  onDaySelected: (sDay, fDay) {
+                    setState(() {
+                      selectedDay = sDay;
+                      focusedDay = fDay;
+                    });
+                  },
+                  headerStyle: const HeaderStyle(
+                    titleCentered: true,
+                    formatButtonVisible: false,
+                    titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
+                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+                  ),
+                  daysOfWeekStyle: const DaysOfWeekStyle(
+                    weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                    weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                  ),
+                  calendarStyle: CalendarStyle(
+                    defaultTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    weekendTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    outsideTextStyle: const TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                    todayDecoration: const BoxDecoration(
+                      color: Colors.white12,
+                      shape: BoxShape.circle,
+                    ),
+                    todayTextStyle: const TextStyle(
+                      color: Colors.deepOrangeAccent,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    selectedDecoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                  ),
+                  calendarBuilders: CalendarBuilders(
+                    selectedBuilder: (context, day, focusedDay) {
+                      final isToday = isSameDay(day, DateTime.now());
+                      return Container(
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    headerTitleBuilder: (context, date) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                DateFormat('yyyy').format(date),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('MMMM', 'ja').format(date),
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('キャンセル', style: TextStyle(color: Colors.white70)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, selectedDay),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF00ACC1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('選択', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
+
     if (picked != null) {
       setState(() {
         _selectedDate = picked;
@@ -628,19 +772,19 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
                                     alignment: Alignment.bottomRight,
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.all(16),
+                                        width: 176,
+                                        height: 176,
                                         decoration: BoxDecoration(
                                           color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                                           shape: BoxShape.circle,
-                                          border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.1), width: 2),
                                         ),
-                                        child: Image.asset(
-                                          'image/icons/${_exerciseNameController.text}.png',
-                                          width: 144,
-                                          height: 144,
-                                          fit: BoxFit.contain,
-                                          cacheWidth: 288,
-                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                        child: ClipOval(
+                                          child: Image.asset(
+                                            'image/icons/${_exerciseNameController.text}.png',
+                                            fit: BoxFit.cover,
+                                            cacheWidth: 352,
+                                            errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                          ),
                                         ),
                                       ),
                                       // タッチできることを示すオーバーレイアイコン

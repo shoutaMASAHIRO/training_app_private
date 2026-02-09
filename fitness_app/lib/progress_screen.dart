@@ -444,6 +444,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ],
               ),
               child: TableCalendar(
+                locale: 'ja_JP',
                 firstDay: DateTime.utc(2020, 1, 1),
                 lastDay: DateTime.utc(2030, 12, 31),
                 focusedDay: _focusedDay,
@@ -569,18 +570,31 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                                                           );
                                                                         },
                                                                         headerTitleBuilder: (context, date) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          DateFormat('MMMM yyyy').format(date).toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.0,
+                    return Container(
+                      padding: const EdgeInsets.symmetric(vertical: 0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            DateFormat('yyyy').format(date),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 2),
+                          Text(
+                            DateFormat('MMMM', 'ja').format(date),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              height: 1.0, // 高さを抑えて矢印に合わせる
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -775,19 +789,19 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                       alignment: Alignment.bottomRight,
                                       children: [
                                         Container(
-                                          padding: const EdgeInsets.all(16),
+                                          width: 176,
+                                          height: 176,
                                           decoration: BoxDecoration(
                                             color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
                                             shape: BoxShape.circle,
-                                            border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.1), width: 2),
                                           ),
-                                          child: Image.asset(
-                                            'image/icons/$_selectedExercise.png',
-                                            width: 144,
-                                            height: 144,
-                                            fit: BoxFit.contain,
-                                            cacheWidth: 288,
-                                            errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                          child: ClipOval(
+                                            child: Image.asset(
+                                              'image/icons/$_selectedExercise.png',
+                                              fit: BoxFit.cover,
+                                              cacheWidth: 352,
+                                              errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                            ),
                                           ),
                                         ),
                                         // タッチできることを示すオーバーレイアイコン

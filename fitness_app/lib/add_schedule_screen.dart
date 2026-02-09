@@ -1,6 +1,7 @@
 import 'package:fitness_app/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 import 'package:fitness_app/models/custom_program.dart';
@@ -470,12 +471,155 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    DateTime focusedDay = _selectedDate;
+    DateTime? selectedDay = _selectedDate;
+
+    final DateTime? picked = await showDialog<DateTime>(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF26C6DA), Color(0xFF00ACC1)],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TableCalendar(
+                  locale: 'ja_JP',
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2030, 12, 31),
+                  focusedDay: focusedDay,
+                  calendarFormat: CalendarFormat.month,
+                  selectedDayPredicate: (day) => isSameDay(selectedDay, day),
+                  onDaySelected: (sDay, fDay) {
+                    setState(() {
+                      selectedDay = sDay;
+                      focusedDay = fDay;
+                    });
+                  },
+                  headerStyle: const HeaderStyle(
+                    titleCentered: true,
+                    formatButtonVisible: false,
+                    titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
+                    rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+                  ),
+                  daysOfWeekStyle: const DaysOfWeekStyle(
+                    weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                    weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                  ),
+                  calendarStyle: CalendarStyle(
+                    defaultTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    weekendTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    outsideTextStyle: const TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                    todayDecoration: const BoxDecoration(
+                      color: Colors.white12,
+                      shape: BoxShape.circle,
+                    ),
+                    todayTextStyle: const TextStyle(
+                      color: Colors.deepOrangeAccent,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    selectedDecoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                  ),
+                  calendarBuilders: CalendarBuilders(
+                    selectedBuilder: (context, day, focusedDay) {
+                      final isToday = isSameDay(day, DateTime.now());
+                      return Container(
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    headerTitleBuilder: (context, date) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                DateFormat('yyyy').format(date),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('MMMM', 'ja').format(date),
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('キャンセル', style: TextStyle(color: Colors.white70)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, selectedDay),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF00ACC1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('選択', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
+
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = DateUtils.dateOnly(picked);
@@ -614,38 +758,83 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                               labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
                               floatingLabelBehavior: FloatingLabelBehavior.always,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                              fillColor: Colors.white,
+                              fillColor: Colors.grey.shade50,
                               filled: true,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                                borderSide: BorderSide.none,
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide(color: themeColor.withValues(alpha: 0.2), width: 1.5),
+                                borderSide: BorderSide.none,
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide(color: themeColor, width: 2),
+                                borderSide: BorderSide(color: themeColor, width: 1.5),
                               ),
-                              suffixIcon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
                             ),
-                            child: Row(
+                            child: Column(
                               children: [
-                                Image.asset(
-                                  'image/icons/${ex['name']}.png',
-                                  width: 20,
-                                  height: 20,
-                                  errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 18, color: Colors.grey.shade400),
+                                const SizedBox(height: 16),
+                                Stack(
+                                  alignment: Alignment.bottomRight,
+                                  children: [
+                                    Container(
+                                      width: 176,
+                                      height: 176,
+                                      decoration: BoxDecoration(
+                                        color: themeColor.withValues(alpha: 0.05),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          'image/icons/${ex['name']}.png',
+                                          fit: BoxFit.cover,
+                                          cacheWidth: 352,
+                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: themeColor,
+                                        shape: BoxShape.circle,
+                                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                                      ),
+                                      child: const Icon(Icons.sync_rounded, color: Colors.white, size: 24),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    ex['name'],
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 14),
-                                    overflow: TextOverflow.ellipsis,
+                                const SizedBox(height: 20),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          ex['name'],
+                                          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF212121), fontSize: 18),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(Icons.touch_app_rounded, color: themeColor, size: 18),
+                                    ],
                                   ),
                                 ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'タップして種目を変更',
+                                  style: TextStyle(color: themeColor, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
                               ],
                             ),
                           ),
@@ -1083,12 +1272,13 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
 
                   const SizedBox(height: 32),
                   SizedBox(
-                    height: 56,
+                    height: 60, // 56 -> 60
                     child: ElevatedButton(
                       onPressed: _isSaving ? null : _saveSchedule,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF424242), // 保存ボタンは少し落ち着いた色に
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16), // パディングを追加
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -1105,7 +1295,11 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                             )
                           : const Text(
                               'スケジュールを保存',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                              style: TextStyle(
+                                fontSize: 16, 
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5, // 文字間を少し調整
+                              ),
                             ),
                     ),
                   ),
