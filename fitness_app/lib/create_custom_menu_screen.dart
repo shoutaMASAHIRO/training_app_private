@@ -87,6 +87,7 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
       'バーベルリストカール',
       'ダンベルリストカール',
       'ケーブルリストカール',
+      '握力',
     ],
   };
 

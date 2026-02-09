@@ -7,8 +7,9 @@ import 'package:fitness_app/models/custom_program.dart';
 
 class AddScheduleScreen extends StatefulWidget {
   final DateTime? selectedDate;
+  final String? initialExerciseName;
 
-  const AddScheduleScreen({super.key, this.selectedDate});
+  const AddScheduleScreen({super.key, this.selectedDate, this.initialExerciseName});
 
   @override
   State<AddScheduleScreen> createState() => _AddScheduleScreenState();
@@ -95,6 +96,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
       'バーベルリストカール',
       'ダンベルリストカール',
       'ケーブルリストカール',
+      '握力',
     ],
   };
 
@@ -160,8 +162,14 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     super.initState();
     _selectedDate = widget.selectedDate ?? DateTime.now();
     _fetchCustomPrograms();
-    // 初期状態で1つの種目を追加しておく
-    _addExercise();
+    
+    if (widget.initialExerciseName != null) {
+      _workoutNameController.text = widget.initialExerciseName!;
+      _addExercise(name: widget.initialExerciseName);
+    } else {
+      // 初期状態で1つの種目を追加しておく
+      _addExercise();
+    }
   }
 
   Future<void> _fetchCustomPrograms() async {
@@ -175,10 +183,10 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     }
   }
 
-  void _addExercise() {
+  void _addExercise({String? name}) {
     setState(() {
       _editableExercises.add({
-        'name': _allExercises.first,
+        'name': name ?? _allExercises.first,
         'sets_count': 3,
         'sets_data': List.generate(3, (index) => {
           'weight': TextEditingController(text: '0.0'),
@@ -969,7 +977,7 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
                 Icon(Icons.edit_note_rounded, color: Colors.grey.shade400, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  'または単発ワークアウトを追加',
+                  '単体種目を追加',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w900,

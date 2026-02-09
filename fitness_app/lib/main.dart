@@ -9,6 +9,7 @@ import 'package:fitness_app/workout_screen.dart';
 import 'package:fitness_app/today_workouts_screen.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 import 'package:fitness_app/services/database_helper.dart';
+import 'package:fitness_app/services/database_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -16,11 +17,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting(); // Initialize date formatting
   DatabaseHelper.initializeDatabaseFactory();
-  runApp(const FitnessApp());
+  
+  final dbService = DatabaseService();
+  final sessionUsername = await dbService.getSession();
+  
+  runApp(FitnessApp(initialUser: sessionUsername));
 }
 
 class FitnessApp extends StatelessWidget {
-  const FitnessApp({super.key});
+  final String? initialUser;
+  const FitnessApp({super.key, this.initialUser});
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +138,7 @@ class FitnessApp extends StatelessWidget {
           margin: EdgeInsets.zero,
         ),
       ),
-      initialRoute: '/',
+      initialRoute: initialUser != null ? '/home' : '/',
       routes: {
         '/': (context) => const LoginScreen(),
         '/home': (context) {
@@ -142,7 +148,10 @@ class FitnessApp extends StatelessWidget {
         '/signup': (context) => const SignupScreen(),
         '/add_schedule': (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
-          return AddScheduleScreen(selectedDate: args?['selectedDate'] as DateTime?);
+          return AddScheduleScreen(
+            selectedDate: args?['selectedDate'] as DateTime?,
+            initialExerciseName: args?['exerciseName'] as String?,
+          );
         },
         '/workout': (context) {
           final schedule = ModalRoute.of(context)!.settings.arguments as WorkoutSchedule;

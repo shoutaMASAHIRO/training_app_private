@@ -78,6 +78,56 @@ class DatabaseService {
     }
   }
 
+  // ==================== セッション管理 ====================
+
+  /// セッションを保存（ログイン状態を保持）
+  Future<void> saveSession(String username) async {
+    try {
+      final db = await _dbHelper.database;
+      await db.transaction((txn) async {
+        // 既存のセッションをクリア
+        await txn.delete(DatabaseHelper.tableSession);
+        // 新しいセッションを保存
+        await txn.insert(
+          DatabaseHelper.tableSession,
+          {DatabaseHelper.colSessionUsername: username},
+        );
+      });
+      debugPrint('[DB] Session saved for: $username');
+    } catch (e) {
+      debugPrint('[DB] Save session error: $e');
+    }
+  }
+
+  /// 現在のセッション（ログインユーザー名）を取得
+  Future<String?> getSession() async {
+    try {
+      final db = await _dbHelper.database;
+      final List<Map<String, dynamic>> result = await db.query(
+        DatabaseHelper.tableSession,
+        limit: 1,
+      );
+      if (result.isNotEmpty) {
+        return result.first[DatabaseHelper.colSessionUsername] as String?;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[DB] Get session error: $e');
+      return null;
+    }
+  }
+
+  /// セッションをクリア（ログアウト）
+  Future<void> clearSession() async {
+    try {
+      final db = await _dbHelper.database;
+      await db.delete(DatabaseHelper.tableSession);
+      debugPrint('[DB] Session cleared');
+    } catch (e) {
+      debugPrint('[DB] Clear session error: $e');
+    }
+  }
+
   // ==================== スケジュール ====================
 
   /// スケジュール全件取得

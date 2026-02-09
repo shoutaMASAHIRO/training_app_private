@@ -13,11 +13,16 @@ class DatabaseHelper {
   static const String tableSchedules = 'workout_schedules';
   static const String tableLogs = 'workout_logs';
   static const String tableCustomPrograms = 'custom_programs';
+  static const String tableSession = 'session';
 
   // usersテーブルのカラム
   static const String colUserId = 'id';
   static const String colUsername = 'username';
   static const String colPasswordHash = 'password_hash';
+
+  // sessionテーブルのカラム
+  static const String colSessionUserId = 'user_id';
+  static const String colSessionUsername = 'username';
 
   // workout_schedulesテーブルのカラム
   static const String colScheduleId = 'id';
@@ -63,7 +68,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -92,6 +97,15 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[DB] Created table: $tableCustomPrograms');
+    }
+    if (oldVersion < 5) {
+      // Create session table
+      await db.execute('''
+        CREATE TABLE $tableSession (
+          $colSessionUsername TEXT PRIMARY KEY
+        )
+      ''');
+      debugPrint('[DB] Created table: $tableSession');
     }
   }
 
@@ -146,6 +160,14 @@ class DatabaseHelper {
       )
     ''');
     debugPrint('[DB] Created table: $tableCustomPrograms');
+
+    // sessionテーブル
+    await db.execute('''
+      CREATE TABLE $tableSession (
+        $colSessionUsername TEXT PRIMARY KEY
+      )
+    ''');
+    debugPrint('[DB] Created table: $tableSession');
 
     debugPrint('[DB] Database creation complete');
   }

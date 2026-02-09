@@ -94,6 +94,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       'バーベルリストカール',
       'ダンベルリストカール',
       'ケーブルリストカール',
+      '握力',
     ],
   };
 
@@ -473,11 +474,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
                   weekendStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
                 ),
-                calendarStyle: const CalendarStyle(
-                  defaultTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  weekendTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  outsideTextStyle: TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
-                  todayDecoration: BoxDecoration(
+                calendarStyle: CalendarStyle(
+                  defaultTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  weekendTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  outsideTextStyle: const TextStyle(color: Colors.white30, fontWeight: FontWeight.bold),
+                  todayDecoration: const BoxDecoration(
                     color: Colors.white12,
                     shape: BoxShape.circle,
                   ),
@@ -486,14 +487,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                                                           fontWeight: FontWeight.w900,
                                                                         ),
                                                                         selectedDecoration: BoxDecoration(
-                                                                          color: Colors.transparent,
-                                                                          shape: BoxShape.circle,
-                                                                          border: Border.fromBorderSide(
-                                                                            BorderSide(color: Colors.white, width: 2),
-                                                                          ),
+                                                                          color: Colors.white.withValues(alpha: 0.2),
+                                                                          borderRadius: BorderRadius.circular(10),
                                                                         ),
-                                                                        selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                                                                        markerDecoration: BoxDecoration(
+                                                                        selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                                                                        markerDecoration: const BoxDecoration(
                                                                           color: Colors.white,
                                                                           shape: BoxShape.circle,
                                                                         ),
@@ -501,38 +499,76 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                                                       calendarBuilders: CalendarBuilders(
                                                                         selectedBuilder: (context, day, focusedDay) {
                                                                           final isToday = isSameDay(day, DateTime.now());
-                                                                          return Center(
-                                                                            child: Container(
-                                                                              width: 32,
-                                                                              height: 32,
-                                                                              decoration: BoxDecoration(
-                                                                                shape: BoxShape.circle,
-                                                                                border: Border.all(color: Colors.white, width: 2),
-                                                                              ),
-                                                                              child: Center(
-                                                                                child: Text(
-                                                                                  '${day.day}',
-                                                                                  style: TextStyle(
-                                                                                    color: isToday ? Colors.deepOrangeAccent : Colors.white,
-                                                                                    fontWeight: FontWeight.w900,
-                                                                                    fontSize: 13,
-                                                                                  ),
+                                                                          return Container(
+                                                                            margin: const EdgeInsets.all(4),
+                                                                            decoration: BoxDecoration(
+                                                                              color: Colors.white.withValues(alpha: 0.2),
+                                                                              borderRadius: BorderRadius.circular(10),
+                                                                            ),
+                                                                            child: Center(
+                                                                              child: Text(
+                                                                                '${day.day}',
+                                                                                style: TextStyle(
+                                                                                  color: isToday ? Colors.deepOrangeAccent : Colors.white,
+                                                                                  fontWeight: FontWeight.w900,
+                                                                                  fontSize: 14,
                                                                                 ),
                                                                               ),
                                                                             ),
                                                                           );
-                                                                        },                  markerBuilder: (context, day, events) {
-                    if (events.isEmpty) return const SizedBox.shrink();
-                    return Positioned(
-                      bottom: 0,
-                      child: const Icon(
-                        Icons.stars_rounded,
-                        color: Colors.white,
-                        size: 14,
-                      ),
-                    );
-                  },
-                  headerTitleBuilder: (context, date) {
+                                                                        },
+                                                                        markerBuilder: (context, day, events) {
+                                                                          if (events.isEmpty) return const SizedBox.shrink();
+                                                                          
+                                                                          // 最大4つまでの星を表示
+                                                                          const maxStars = 4;
+                                                                          final starCount = min(events.length, maxStars);
+                                                                          final hasMore = events.length > maxStars;
+
+                                                                          return Positioned(
+                                                                            bottom: 4,
+                                                                            child: Row(
+                                                                              mainAxisSize: MainAxisSize.min,
+                                                                              children: [
+                                                                                ...List.generate(
+                                                                                  starCount,
+                                                                                  (index) => const Padding(
+                                                                                    padding: EdgeInsets.symmetric(horizontal: 0.5),
+                                                                                    child: Icon(
+                                                                                      Icons.stars_rounded,
+                                                                                      color: Colors.white,
+                                                                                      size: 13,
+                                                                                      shadows: [
+                                                                                        Shadow(
+                                                                                          blurRadius: 4.0,
+                                                                                          color: Colors.black26,
+                                                                                          offset: Offset(0, 1),
+                                                                                        ),
+                                                                                      ],
+                                                                                    ),
+                                                                                  ),
+                                                                                ),
+                                                                                if (hasMore)
+                                                                                  const Text(
+                                                                                    '+',
+                                                                                    style: TextStyle(
+                                                                                      color: Colors.white,
+                                                                                      fontSize: 10,
+                                                                                      fontWeight: FontWeight.bold,
+                                                                                      shadows: [
+                                                                                        Shadow(
+                                                                                          blurRadius: 4.0,
+                                                                                          color: Colors.black26,
+                                                                                          offset: Offset(0, 1),
+                                                                                        ),
+                                                                                      ],
+                                                                                    ),
+                                                                                  ),
+                                                                              ],
+                                                                            ),
+                                                                          );
+                                                                        },
+                                                                        headerTitleBuilder: (context, date) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -713,14 +749,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           borderRadius: BorderRadius.circular(24),
                           child: InputDecorator(
                             decoration: InputDecoration(
-                              labelText: '種目を選択',
-                              labelStyle: const TextStyle(
-                                color: Color(0xFF00ACC1),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                letterSpacing: 1.0,
-                              ),
-                              floatingLabelBehavior: FloatingLabelBehavior.always,
+                              hintText: '種目を選択してください',
+                              hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                               fillColor: Colors.white,
                               filled: true,
@@ -736,25 +766,71 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 borderRadius: BorderRadius.circular(24),
                                 borderSide: const BorderSide(color: Color(0xFF00ACC1), width: 2),
                               ),
-                              suffixIcon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF00ACC1)),
                             ),
                             child: _selectedExercise != null 
-                              ? Row(
+                              ? Column(
                                   children: [
-                                    Image.asset(
-                                      'image/icons/$_selectedExercise.png',
-                                      width: 20,
-                                      height: 20,
-                                      errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 18, color: Colors.grey.shade400),
+                                    const SizedBox(height: 16),
+                                    Stack(
+                                      alignment: Alignment.bottomRight,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF00ACC1).withValues(alpha: 0.05),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.1), width: 2),
+                                          ),
+                                          child: Image.asset(
+                                            'image/icons/$_selectedExercise.png',
+                                            width: 144,
+                                            height: 144,
+                                            fit: BoxFit.contain,
+                                            cacheWidth: 288,
+                                            errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 72, color: Colors.grey.shade400),
+                                          ),
+                                        ),
+                                        // タッチできることを示すオーバーレイアイコン
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF00ACC1),
+                                            shape: BoxShape.circle,
+                                            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                                          ),
+                                          child: const Icon(Icons.sync_rounded, color: Colors.white, size: 24),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        _selectedExercise!,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 16),
-                                        overflow: TextOverflow.ellipsis,
+                                    const SizedBox(height: 20),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.grey.shade200),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              _selectedExercise!,
+                                              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF212121), fontSize: 18),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Icon(Icons.touch_app_rounded, color: Color(0xFF00ACC1), size: 18),
+                                        ],
                                       ),
                                     ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'タップして種目を変更',
+                                      style: TextStyle(color: Color(0xFF00ACC1), fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 8),
                                   ],
                                 )
                               : const Text('種目を選択してください'),

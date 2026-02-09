@@ -1156,6 +1156,7 @@ class _MenuTabScreenState extends State<MenuTabScreen> {
       'バーベルリストカール',
       'ダンベルリストカール',
       'ケーブルリストカール',
+      '握力',
     ],
   };
 
@@ -1703,7 +1704,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            height: 56,
+            height: 60, // 56から60に変更
             child: ElevatedButton.icon(
               onPressed: () async {
                 final DateTime? picked = await showDatePicker(
@@ -1731,6 +1732,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF424242), // ダークグレーに変更して画像とのコントラストを調整
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // パディングを追加
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -1787,6 +1789,35 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
             boxShadow: [BoxShadow(color: const Color(0xFF00ACC1).withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
           ),
           child: _buildChart(spots, sortedDates, colorScheme),
+        ),
+        const SizedBox(height: 16),
+        // 追加: スケジュール登録ボタン
+        SizedBox(
+          width: double.infinity,
+          height: 60, // 52から60に増やして垂直方向にゆとりを持たせる
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                '/add_schedule',
+                arguments: {'exerciseName': widget.exerciseName},
+              );
+            },
+            icon: const Icon(Icons.calendar_today, color: Colors.white, size: 20),
+            label: const Text(
+              'この種目のスケジュールを追加',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00ACC1),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // パディングを追加
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 0,
+            ),
+          ),
         ),
         _buildStatisticsSummary(spots, colorScheme, Theme.of(context)),
       ],
@@ -2475,6 +2506,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       'バーベルリストカール',
       'ダンベルリストカール',
       'ケーブルリストカール',
+      '握力',
     ],
   };
 

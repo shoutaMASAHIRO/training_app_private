@@ -93,6 +93,7 @@ class _AddManualLogScreenState extends State<AddManualLogScreen> {
       'バーベルリストカール',
       'ダンベルリストカール',
       'ケーブルリストカール',
+      '握力',
     ],
   };
 
