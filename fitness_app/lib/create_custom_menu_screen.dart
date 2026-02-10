@@ -253,9 +253,15 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
     setState(() {
       final currentData = _exercises[exerciseIndex]['sets_data'] as List<Map<String, TextEditingController>>;
       if (newCount > currentData.length) {
-        // 増やす
-        currentData.addAll(List.generate(newCount - currentData.length, 
-          (index) => {'weight': TextEditingController(), 'reps': TextEditingController()}));
+        // 増やす際に、最後のセットの内容を継承する
+        for (int i = currentData.length; i < newCount; i++) {
+          final lastWeight = currentData.isNotEmpty ? currentData.last['weight']!.text : '';
+          final lastReps = currentData.isNotEmpty ? currentData.last['reps']!.text : '';
+          currentData.add({
+            'weight': TextEditingController(text: lastWeight),
+            'reps': TextEditingController(text: lastReps),
+          });
+        }
       } else if (newCount < currentData.length) {
         // 減らす
         for (int i = currentData.length - 1; i >= newCount; i--) {
@@ -458,18 +464,19 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
 
             // 保存ボタン
             SizedBox(
-              height: 56,
+              height: 64, // 56から64に増加
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveMenu,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: themeColor,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24), // パディングを追加
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 0,
                 ),
                 child: _isSaving
                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                    : const Text('プログラムを保存', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                    : const Text('プログラムを保存', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
               ),
             ),
             const SizedBox(height: 24),
@@ -536,9 +543,8 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
                           borderRadius: BorderRadius.circular(24),
                           child: InputDecorator(
                             decoration: InputDecoration(
-                              labelText: '種目',
-                              labelStyle: TextStyle(color: themeColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.0),
-                              floatingLabelBehavior: FloatingLabelBehavior.always,
+                              hintText: '種目を選択してください',
+                              hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                               fillColor: Colors.white,
                               filled: true,
@@ -554,24 +560,69 @@ class _CreateCustomMenuScreenState extends State<CreateCustomMenuScreen> {
                                 borderRadius: BorderRadius.circular(24),
                                 borderSide: BorderSide(color: themeColor, width: 2),
                               ),
-                              suffixIcon: Icon(Icons.unfold_more_rounded, color: themeColor, size: 20),
                             ),
-                            child: Row(
+                            child: Column(
                               children: [
-                                Image.asset(
-                                  'image/icons/${ex['name']}.png',
-                                  width: 20,
-                                  height: 20,
-                                  errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 18, color: Colors.grey.shade400),
+                                const SizedBox(height: 16),
+                                Stack(
+                                  alignment: Alignment.bottomRight,
+                                  children: [
+                                    Container(
+                                      width: 120,
+                                      height: 120,
+                                      decoration: BoxDecoration(
+                                        color: themeColor.withValues(alpha: 0.05),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          'image/icons/${ex['name']}.png',
+                                          fit: BoxFit.cover,
+                                          cacheWidth: 240,
+                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.fitness_center, size: 48, color: Colors.grey.shade400),
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: themeColor,
+                                        shape: BoxShape.circle,
+                                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                                      ),
+                                      child: const Icon(Icons.sync_rounded, color: Colors.white, size: 18),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    ex['name'],
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF424242), fontSize: 14),
-                                    overflow: TextOverflow.ellipsis,
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          ex['name'],
+                                          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF212121), fontSize: 16),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(Icons.touch_app_rounded, color: themeColor, size: 16),
+                                    ],
                                   ),
                                 ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'タップして種目を変更',
+                                  style: TextStyle(color: themeColor, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
                               ],
                             ),
                           ),

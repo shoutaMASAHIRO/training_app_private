@@ -128,6 +128,45 @@ class DatabaseService {
     }
   }
 
+  // ==================== アプリ設定 ====================
+
+  /// 設定を保存
+  Future<void> saveSetting(String key, String value) async {
+    try {
+      final db = await _dbHelper.database;
+      await db.insert(
+        DatabaseHelper.tableSettings,
+        {
+          DatabaseHelper.colSettingKey: key,
+          DatabaseHelper.colSettingValue: value,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      debugPrint('[DB] Setting saved: $key = $value');
+    } catch (e) {
+      debugPrint('[DB] Save setting error: $e');
+    }
+  }
+
+  /// 設定を取得
+  Future<String?> getSetting(String key) async {
+    try {
+      final db = await _dbHelper.database;
+      final List<Map<String, dynamic>> result = await db.query(
+        DatabaseHelper.tableSettings,
+        where: '${DatabaseHelper.colSettingKey} = ?',
+        whereArgs: [key],
+      );
+      if (result.isNotEmpty) {
+        return result.first[DatabaseHelper.colSettingValue] as String?;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[DB] Get setting error: $e');
+      return null;
+    }
+  }
+
   // ==================== スケジュール ====================
 
   /// スケジュール全件取得

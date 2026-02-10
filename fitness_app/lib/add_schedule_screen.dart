@@ -416,11 +416,15 @@ class _AddScheduleScreenState extends State<AddScheduleScreen> {
     setState(() {
       final currentData = _editableExercises[exerciseIndex]['sets_data'] as List<Map<String, TextEditingController>>;
       if (newCount > currentData.length) {
-        currentData.addAll(List.generate(newCount - currentData.length, 
-          (index) => {
-            'weight': TextEditingController(text: '0.0'),
-            'reps': TextEditingController(text: '10')
-          }));
+        // 増やす際に、最後のセットの内容を継承する
+        for (int i = currentData.length; i < newCount; i++) {
+          final lastWeight = currentData.isNotEmpty ? currentData.last['weight']!.text : '0.0';
+          final lastReps = currentData.isNotEmpty ? currentData.last['reps']!.text : '10';
+          currentData.add({
+            'weight': TextEditingController(text: lastWeight),
+            'reps': TextEditingController(text: lastReps),
+          });
+        }
       } else if (newCount < currentData.length) {
         for (int i = currentData.length - 1; i >= newCount; i--) {
           currentData[i]['weight']!.dispose();

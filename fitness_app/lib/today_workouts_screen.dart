@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 import 'package:fitness_app/services/database_service.dart';
+import 'package:fitness_app/home_screen.dart';
 
 class TodayWorkoutsScreen extends StatefulWidget {
   final List<WorkoutSchedule> initialSchedules;
@@ -15,12 +16,39 @@ class _TodayWorkoutsScreenState extends State<TodayWorkoutsScreen> {
   final DatabaseService _dbService = DatabaseService();
   late List<WorkoutSchedule> _schedules;
   bool _isLoading = false;
+  int _selectedIndex = 0; // Dashboard related
 
   @override
   void initState() {
     super.initState();
     _schedules = List.from(widget.initialSchedules);
     _refreshSchedules();
+  }
+
+  void _onItemTapped(int index) {
+    if (_selectedIndex == index) return;
+
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 0});
+        break;
+      case 1:
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 1});
+        break;
+      case 2:
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 2});
+        break;
+      case 3:
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 3});
+        break;
+      case 4:
+        Navigator.pushReplacementNamed(context, '/home', arguments: {'initialIndex': 4});
+        break;
+    }
   }
 
   Future<void> _handleWorkoutResult(WorkoutSchedule schedule, dynamic result) async {
@@ -78,6 +106,10 @@ class _TodayWorkoutsScreenState extends State<TodayWorkoutsScreen> {
                     );
                   },
                 ),
+      bottomNavigationBar: AppBottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
     );
   }
 }

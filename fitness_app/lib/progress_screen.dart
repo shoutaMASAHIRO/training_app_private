@@ -943,104 +943,116 @@ class _ProgressScreenState extends State<ProgressScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              Container(
-                width: 6,
-                color: const Color(0xFF00ACC1),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 18.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Row(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                '/exercise_detail',
+                arguments: {'exerciseName': log.menuTitle},
+              );
+            },
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    color: const Color(0xFF00ACC1),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 18.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.stars_rounded, size: 16, color: Color(0xFF00ACC1)),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'PERSONAL RECORD',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF00ACC1),
-                              letterSpacing: 1.0,
+                          Row(
+                            children: [
+                              const Icon(Icons.stars_rounded, size: 16, color: Color(0xFF00ACC1)),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'PERSONAL RECORD',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF00ACC1),
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            log.menuTitle,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF424242),
+                              letterSpacing: -0.5,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        log.menuTitle,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF424242),
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                decoration: BoxDecoration(
-                  border: Border(
-                    left: BorderSide(color: Colors.grey.shade100, width: 1),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      weightDisplay.replaceAll('kg', ''),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'monospace',
-                        color: Color(0xFF424242),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(color: Colors.grey.shade100, width: 1),
                       ),
                     ),
-                    const Text(
-                      'kg',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          weightDisplay.replaceAll('kg', ''),
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'monospace',
+                            color: Color(0xFF424242),
+                          ),
+                        ),
+                        const Text(
+                          'kg',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        if (repsDisplay.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            repsDisplay,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00ACC1),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Material(
+                    color: Colors.red.shade50,
+                    child: InkWell(
+                      onTap: () => _confirmDeleteLog(log),
+                      child: Container(
+                        width: 56,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
                       ),
                     ),
-                    if (repsDisplay.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        repsDisplay,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF00ACC1),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Material(
-                color: Colors.red.shade50,
-                child: InkWell(
-                  onTap: () => _confirmDeleteLog(log),
-                  child: Container(
-                    width: 56,
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 22),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1149,12 +1161,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
     double maxY = max(maxWeight + 10, minY + 20);
     maxY = (maxY / 10).ceil() * 10.0;
     final animatedSpots = spots.map((spot) => FlSpot(spot.x, spot.y)).toList();
+
+    double yInterval = ((maxY - minY) / 5).clamp(2.5, double.infinity);
+    // 2.5の倍数に丸める
+    yInterval = (yInterval / 2.5).ceil() * 2.5;
+
     return LineChart(
       LineChartData(
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: 5,
+          horizontalInterval: yInterval,
           getDrawingHorizontalLine: (value) {
             return FlLine(
               color: colorScheme.outlineVariant.withValues(alpha: 0.1),
@@ -1174,6 +1191,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 if (index >= 0 && index < sortedDates.length) {
                   return SideTitleWidget(
                     meta: meta,
+                    fitInside: SideTitleFitInsideData(
+                      enabled: true,
+                      axisPosition: meta.axisPosition,
+                      parentAxisSize: meta.parentAxisSize,
+                      distanceFromEdge: 0,
+                    ),
                     child: Text(
                       DateFormat('M/d').format(sortedDates[index]),
                       style: TextStyle(
@@ -1192,7 +1215,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
-              interval: 5,
+              interval: yInterval,
               getTitlesWidget: (value, meta) {
                 if (meta.appliedInterval != null && (value == minY || value == maxY)) return const SizedBox.shrink();
                 return Text(

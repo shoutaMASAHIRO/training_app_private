@@ -519,7 +519,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             workoutDetails: _todaysSchedule.workoutDetails,
             sessionTitle: _todaysSchedule.sessionTitle,
             successCount: successCount,
-            failCount: failCount,
+            failCount: totalSets - successCount, // 未完了分も失敗としてカウントし「未達成」にする
           );
           await _apiService.addLog(log);
           

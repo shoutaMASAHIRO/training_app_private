@@ -1,3 +1,4 @@
+import 'package:fitness_app/quick_workout_modal.dart';
 import 'package:fitness_app/progress_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
@@ -11,6 +12,10 @@ import 'package:fitness_app/services/database_service.dart';
 import 'package:fitness_app/models/workout_schedule.dart';
 import 'package:fitness_app/models/custom_program.dart';
 import 'package:fitness_app/models/workout_log.dart';
+
+double _roundToNearest2_5(double weight) {
+  return (weight / 2.5).round() * 2.5;
+}
 
 class HomeScreen extends StatefulWidget {
   final int? initialIndex;
@@ -67,6 +72,24 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _showQuickActions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const QuickWorkoutModal(),
+    ).then((result) {
+      if (result == true) {
+        // Refresh dashboard data if a workout was completed
+        // This requires access to _DashboardScreenState or a global refresh mechanism.
+        // Since we can't easily access the child state, we rely on the user manually refreshing 
+        // or navigating away and back (if that triggers refresh).
+        // Alternatively, if we lift state up, we could refresh here.
+        // For now, we leave it as is, similar to other navigation actions.
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -83,12 +106,170 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Welcome Back!'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Color(0xFF00ACC1)),
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/');
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.grid_view_rounded, color: Color(0xFF00ACC1), size: 32),
+            tooltip: 'Site Map',
+            offset: const Offset(0, 56),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            onSelected: (value) {
+              switch (value) {
+                // --- Dashboard Group ---
+                case 'dashboard':
+                  setState(() { _selectedIndex = 0; });
+                  break;
+                case 'add_schedule':
+                  Navigator.pushNamed(context, '/add_schedule');
+                  break;
+                
+                // --- Menu Group ---
+                case 'menu':
+                  setState(() { _selectedIndex = 1; });
+                  break;
+
+                // --- Programs Group ---
+                case 'programs':
+                  setState(() { _selectedIndex = 2; });
+                  break;
+                case 'create_menu':
+                  Navigator.pushNamed(context, '/create_custom_menu');
+                  break;
+
+                // --- Progress Group ---
+                case 'progress':
+                  setState(() { _selectedIndex = 3; });
+                  break;
+                case 'add_manual_log':
+                  Navigator.pushNamed(context, '/add_manual_log');
+                  break;
+
+                // --- Logs Group ---
+                case 'logs':
+                  setState(() { _selectedIndex = 4; });
+                  break;
+
+                // --- System ---
+                case 'logout':
+                  Navigator.pushReplacementNamed(context, '/');
+                  break;
+              }
             },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              // === Dashboard ===
+              const PopupMenuItem<String>(
+                value: 'dashboard',
+                child: Row(
+                  children: [
+                    Icon(Icons.dashboard_rounded, color: Color(0xFF00ACC1)),
+                    SizedBox(width: 12),
+                    Text('Dashboard', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'add_schedule',
+                height: 40,
+                child: Row(
+                  children: [
+                    SizedBox(width: 24), // Indent
+                    Icon(Icons.subdirectory_arrow_right_rounded, color: Colors.grey, size: 18),
+                    SizedBox(width: 8),
+                    Text('予定を追加', style: TextStyle(fontSize: 14, color: Color(0xFF616161))),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+
+              // === Menu ===
+              const PopupMenuItem<String>(
+                value: 'menu',
+                child: Row(
+                  children: [
+                    Icon(Icons.fitness_center_rounded, color: Color(0xFF00ACC1)),
+                    SizedBox(width: 12),
+                    Text('Menu', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+
+              // === Programs ===
+              const PopupMenuItem<String>(
+                value: 'programs',
+                child: Row(
+                  children: [
+                    Icon(Icons.assignment_rounded, color: Color(0xFF00ACC1)),
+                    SizedBox(width: 12),
+                    Text('Programs', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'create_menu',
+                height: 40,
+                child: Row(
+                  children: [
+                    SizedBox(width: 24),
+                    Icon(Icons.subdirectory_arrow_right_rounded, color: Colors.grey, size: 18),
+                    SizedBox(width: 8),
+                    Text('カスタムメニュー作成', style: TextStyle(fontSize: 14, color: Color(0xFF616161))),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+
+              // === Progress ===
+              const PopupMenuItem<String>(
+                value: 'progress',
+                child: Row(
+                  children: [
+                    Icon(Icons.bar_chart_rounded, color: Color(0xFF00ACC1)),
+                    SizedBox(width: 12),
+                    Text('Progress', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'add_manual_log',
+                height: 40,
+                child: Row(
+                  children: [
+                    SizedBox(width: 24),
+                    Icon(Icons.subdirectory_arrow_right_rounded, color: Colors.grey, size: 18),
+                    SizedBox(width: 8),
+                    Text('実績を手動入力', style: TextStyle(fontSize: 14, color: Color(0xFF616161))),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+
+              // === Logs ===
+              const PopupMenuItem<String>(
+                value: 'logs',
+                child: Row(
+                  children: [
+                    Icon(Icons.history_rounded, color: Color(0xFF00ACC1)),
+                    SizedBox(width: 12),
+                    Text('Logs', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  ],
+                ),
+              ),
+              
+              const PopupMenuDivider(),
+
+              // === Logout ===
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, color: Colors.redAccent),
+                    SizedBox(width: 12),
+                    Text('Logout', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.redAccent, fontSize: 16)),
+                  ],
+                ),
+              ),
+            ],
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: AnimatedSwitcher(
@@ -140,6 +321,24 @@ class _HomeScreenState extends State<HomeScreen> {
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
       ),
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton.extended(
+              onPressed: () => _showQuickActions(context),
+              backgroundColor: const Color(0xFF00ACC1),
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              icon: const Icon(Icons.bolt_rounded, color: Colors.white, size: 28),
+              label: const Text(
+                'Quick',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -1408,12 +1607,16 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
     maxY = (maxY / 10).ceil() * 10.0;
     if (maxY <= minY) maxY = minY + 20;
 
+    double yInterval = ((maxY - minY) / 5).clamp(2.5, double.infinity);
+    // 2.5の倍数に丸める
+    yInterval = (yInterval / 2.5).ceil() * 2.5;
+
     return LineChart(
       LineChartData(
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: 5,
+          horizontalInterval: yInterval,
           getDrawingHorizontalLine: (value) {
             return FlLine(
               color: colorScheme.outlineVariant.withValues(alpha: 0.1),
@@ -1433,6 +1636,12 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                 if (index >= 0 && index < sortedDates.length) {
                   return SideTitleWidget(
                     meta: meta,
+                    fitInside: SideTitleFitInsideData(
+                      enabled: true,
+                      axisPosition: meta.axisPosition,
+                      parentAxisSize: meta.parentAxisSize,
+                      distanceFromEdge: 0,
+                    ),
                     child: Text(
                       DateFormat('M/d').format(sortedDates[index]),
                       style: TextStyle(
@@ -1451,7 +1660,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
-              interval: 5,
+              interval: yInterval,
               getTitlesWidget: (value, meta) {
                 return Text(
                   '${value.toInt()}kg',
@@ -3133,8 +3342,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   Future<void> _register10x10Program() async {
     debugPrint('[LOG] _register10x10Program called.');
     debugPrint('[LOG] Current Weight: ${_currentWeightController.text}, Exercise Kind: ${_exerciseKindController.text}');
-    final startWeight = double.tryParse(_currentWeightController.text);
-    if (startWeight == null || startWeight <= 0) {
+    final inputMaxWeight = double.tryParse(_currentWeightController.text);
+    if (inputMaxWeight == null || inputMaxWeight <= 0) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('有効な重量を入力してください')),
@@ -3154,9 +3363,13 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       final startDate = DateUtils.dateOnly(_startDate);
       final List<WorkoutSchedule> schedules = [];
 
+      // 10x10 (GVT) は通常、1RMの60-70%で開始する
+      // 2.5kg刻みに丸める
+      final baseWeight = _roundToNearest2_5(inputMaxWeight * 0.7);
+
       for (int i = 0; i < 10; i++) {
         final scheduledDate = startDate.add(Duration(days: i));
-        final weight = startWeight + (i * 2.5);
+        final weight = baseWeight + (i * 2.5);
         final workoutDetails = '10x10 @ ${weight.toStringAsFixed(1)}kg';
 
         schedules.add(WorkoutSchedule(
@@ -3217,8 +3430,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
     try {
       final List<WorkoutSchedule> schedules = [];
-      // スタート重量は1RMの75%とする
-      final weightsMap = { for (var ex in _programExercises) ex['name'] as String : (ex['weight'] as double) * 0.75 };
+      // スタート重量は1RMの75%とする。2.5kg刻みに丸める
+      final weightsMap = { for (var ex in _programExercises) ex['name'] as String : _roundToNearest2_5((ex['weight'] as double) * 0.75) };
 
       final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
       final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
@@ -3260,17 +3473,17 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         final isWorkoutA = workoutIndex % 2 == 0;
         StringBuffer details = StringBuffer();
 
-        for (var ex in squats) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + workoutIndex * 2.5).toStringAsFixed(1)}kg\n');
+        for (var ex in squats) details.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5(weightsMap[ex['name']]! + workoutIndex * 2.5).toStringAsFixed(1)}kg\n');
         if (isWorkoutA) {
           final aCount = (workoutIndex + 1) ~/ 2;
-          for (var ex in benches) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
-          for (var ex in rows) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
+          for (var ex in benches) details.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
+          for (var ex in rows) details.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5(weightsMap[ex['name']]! + aCount * 2.5).toStringAsFixed(1)}kg\n');
         } else {
           final bCount = workoutIndex ~/ 2;
-          for (var ex in ohps) details.write('${ex['name']}: 5x5 @ ${(weightsMap[ex['name']]! + bCount * 2.5).toStringAsFixed(1)}kg\n');
-          for (var ex in deadlifts) details.write('${ex['name']}: 1x5 @ ${(weightsMap[ex['name']]! + bCount * 5.0).toStringAsFixed(1)}kg\n');
+          for (var ex in ohps) details.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5(weightsMap[ex['name']]! + bCount * 2.5).toStringAsFixed(1)}kg\n');
+          for (var ex in deadlifts) details.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(weightsMap[ex['name']]! + bCount * 5.0).toStringAsFixed(1)}kg\n');
         }
-        for (var ex in others) details.write('${ex['name']}: 3x10 @ ${((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
+        for (var ex in others) details.write('${ex['name']}: 3x10 @ ${_roundToNearest2_5((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
 
         if (details.isNotEmpty) {
           schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: 'StrongLifts 5x5', menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}', workoutDetails: details.toString().trim(), sessionTitle: isWorkoutA ? 'Workout A' : 'Workout B'));
@@ -3298,7 +3511,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
     try {
       final List<WorkoutSchedule> schedules = [];
-      final fiveRMMap = { for (var ex in _programExercises) ex['name'] as String : (ex['weight'] as double) * 0.85 };
+      // 5RMを最大重量の85%と推定し、2.5kg刻みに丸める
+      final fiveRMMap = { for (var ex in _programExercises) ex['name'] as String : _roundToNearest2_5((ex['weight'] as double) * 0.85) };
 
       final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
       final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
@@ -3347,25 +3561,25 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         // Day 1: Volume
         DateTime d1date = weekDates[0];
         StringBuffer vol = StringBuffer();
-        for (var ex in squats) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
-        for (var ex in benches) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
-        for (var ex in presses) vol.write('${ex['name']}: 5x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
+        for (var ex in squats) vol.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
+        for (var ex in benches) vol.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
+        for (var ex in presses) vol.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5((fiveRMMap[ex['name']]! + week * 2.5) * 0.9).toStringAsFixed(1)}kg\n');
         if (vol.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d1date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Volume', workoutDetails: vol.toString().trim(), sessionTitle: 'Volume Day'));
 
         // Day 2: Recovery
         DateTime d2date = weekDates[1];
         StringBuffer rec = StringBuffer();
-        for (var ex in squats) rec.write('${ex['name']}: 2x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
-        for (var ex in benches) rec.write('${ex['name']}: 3x5 @ ${((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
+        for (var ex in squats) rec.write('${ex['name']}: 2x5 @ ${_roundToNearest2_5((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
+        for (var ex in benches) rec.write('${ex['name']}: 3x5 @ ${_roundToNearest2_5((fiveRMMap[ex['name']]! + week * 2.5) * 0.72).toStringAsFixed(1)}kg\n');
         if (rec.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d2date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Recovery', workoutDetails: rec.toString().trim(), sessionTitle: 'Recovery Day'));
 
         // Day 3: Intensity
         DateTime d3date = weekDates[2];
         StringBuffer intens = StringBuffer();
-        for (var ex in squats) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
-        for (var ex in benches) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
-        for (var ex in presses) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
-        for (var ex in deadlifts) intens.write('${ex['name']}: 1x5 @ ${(fiveRMMap[ex['name']]! + week * 5.0).toStringAsFixed(1)}kg\n');
+        for (var ex in squats) intens.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
+        for (var ex in benches) intens.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
+        for (var ex in presses) intens.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
+        for (var ex in deadlifts) intens.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(fiveRMMap[ex['name']]! + week * 5.0).toStringAsFixed(1)}kg\n');
         if (intens.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d3date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Intensity', workoutDetails: intens.toString().trim(), sessionTitle: 'Intensity Day'));
       }
       await _apiService.addSchedules(schedules);
@@ -3441,12 +3655,12 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             } else if (i == 1) {
               for (var ex in benches) details.write('${ex['name']} Variation: 1-3 reps @ MAX\n');
             } else if (i == 2) {
-              for (var ex in squats) details.write('${ex['name']}: 10x2 @ ${(weightsMap[ex['name']]! * 0.55).toStringAsFixed(1)}kg\n');
-              for (var ex in deadlifts) details.write('${ex['name']}: 10x1 @ ${(weightsMap[ex['name']]! * 0.65).toStringAsFixed(1)}kg\n');
+              for (var ex in squats) details.write('${ex['name']}: 10x2 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.55).toStringAsFixed(1)}kg\n');
+              for (var ex in deadlifts) details.write('${ex['name']}: 10x1 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.65).toStringAsFixed(1)}kg\n');
             } else if (i == 3) {
-              for (var ex in benches) details.write('${ex['name']}: 9x3 @ ${(weightsMap[ex['name']]! * 0.55).toStringAsFixed(1)}kg\n');
+              for (var ex in benches) details.write('${ex['name']}: 9x3 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.55).toStringAsFixed(1)}kg\n');
             }
-            for (var ex in others) details.write('${ex['name']}: 3x10-15 @ ${(weightsMap[ex['name']]! * 0.5).toStringAsFixed(1)}kg\n');
+            for (var ex in others) details.write('${ex['name']}: 3x10-15 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.5).toStringAsFixed(1)}kg\n');
             if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1}', workoutDetails: details.toString().trim(), sessionTitle: sessionTitles[i]));
           }
         }
@@ -3462,10 +3676,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             StringBuffer details = StringBuffer();
             double intensity = (week < 2) ? 0.8 : ((week < 4) ? 0.9 : 0.95);
             String reps = (week < 2) ? '4x6' : ((week < 4) ? '3x3' : '1x1-4');
-            for (var ex in squats) details.write('${ex['name']}: $reps @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
-            for (var ex in benches) details.write('${ex['name']}: $reps @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
-            for (var ex in deadlifts) if (day % 2 == 1) details.write('${ex['name']}: 2x6 @ ${(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
-            for (var ex in others) details.write('${ex['name']}: 3x10 @ ${(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
+            for (var ex in squats) details.write('${ex['name']}: $reps @ ${_roundToNearest2_5(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
+            for (var ex in benches) details.write('${ex['name']}: $reps @ ${_roundToNearest2_5(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
+            for (var ex in deadlifts) if (day % 2 == 1) details.write('${ex['name']}: 2x6 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * intensity).toStringAsFixed(1)}kg\n');
+            for (var ex in others) details.write('${ex['name']}: 3x10 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
             if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Day ${day + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'Cycle Day'));
           }
         }
@@ -3482,10 +3696,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             DateTime scheduledDate = validDatesPool[poolIndex];
 
             StringBuffer details = StringBuffer();
-            for (var ex in squats) details.write('${ex['name']}: 5x3 @ ${(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
-            for (var ex in benches) details.write('${ex['name']}: 5x3 @ ${(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
-            for (var ex in deadlifts) if (i == 1) details.write('${ex['name']}: 4x2 @ ${(weightsMap[ex['name']]! * 0.85).toStringAsFixed(1)}kg\n');
-            for (var ex in others) details.write('${ex['name']}: 4x8 @ ${(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
+            for (var ex in squats) details.write('${ex['name']}: 5x3 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
+            for (var ex in benches) details.write('${ex['name']}: 5x3 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.8).toStringAsFixed(1)}kg\n');
+            for (var ex in deadlifts) if (i == 1) details.write('${ex['name']}: 4x2 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.85).toStringAsFixed(1)}kg\n');
+            for (var ex in others) details.write('${ex['name']}: 4x8 @ ${_roundToNearest2_5(weightsMap[ex['name']]! * 0.6).toStringAsFixed(1)}kg\n');
             if (details.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: programName, menuDifficulty: 'Week ${week + 1} Session ${i + 1}', workoutDetails: details.toString().trim(), sessionTitle: 'High Volume Session'));
           }
         }
@@ -5259,7 +5473,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '現在の重量を入力',
+                        '最大重量 (1RM) を入力',
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
                       ),
                       const SizedBox(height: 12),

@@ -14,6 +14,7 @@ class DatabaseHelper {
   static const String tableLogs = 'workout_logs';
   static const String tableCustomPrograms = 'custom_programs';
   static const String tableSession = 'session';
+  static const String tableSettings = 'app_settings';
 
   // usersテーブルのカラム
   static const String colUserId = 'id';
@@ -23,6 +24,10 @@ class DatabaseHelper {
   // sessionテーブルのカラム
   static const String colSessionUserId = 'user_id';
   static const String colSessionUsername = 'username';
+
+  // app_settingsテーブルのカラム
+  static const String colSettingKey = 'setting_key';
+  static const String colSettingValue = 'setting_value';
 
   // workout_schedulesテーブルのカラム
   static const String colScheduleId = 'id';
@@ -68,7 +73,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -106,6 +111,16 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[DB] Created table: $tableSession');
+    }
+    if (oldVersion < 6) {
+      // Create app_settings table
+      await db.execute('''
+        CREATE TABLE $tableSettings (
+          $colSettingKey TEXT PRIMARY KEY,
+          $colSettingValue TEXT
+        )
+      ''');
+      debugPrint('[DB] Created table: $tableSettings');
     }
   }
 
@@ -168,6 +183,15 @@ class DatabaseHelper {
       )
     ''');
     debugPrint('[DB] Created table: $tableSession');
+
+    // app_settingsテーブル
+    await db.execute('''
+      CREATE TABLE $tableSettings (
+        $colSettingKey TEXT PRIMARY KEY,
+        $colSettingValue TEXT
+      )
+    ''');
+    debugPrint('[DB] Created table: $tableSettings');
 
     debugPrint('[DB] Database creation complete');
   }
