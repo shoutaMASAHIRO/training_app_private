@@ -73,19 +73,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showQuickActions(BuildContext context) {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const QuickWorkoutModal(),
+      barrierDismissible: true,
+      builder: (context) => const Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: QuickWorkoutModal(),
+      ),
     ).then((result) {
       if (result == true) {
-        // Refresh dashboard data if a workout was completed
-        // This requires access to _DashboardScreenState or a global refresh mechanism.
-        // Since we can't easily access the child state, we rely on the user manually refreshing 
-        // or navigating away and back (if that triggers refresh).
-        // Alternatively, if we lift state up, we could refresh here.
-        // For now, we leave it as is, similar to other navigation actions.
+        // Refresh dashboard if needed
       }
     });
   }
@@ -2378,6 +2376,12 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
       'icon': Icons.grid_view,
     },
     {
+      'name': 'Toshiki Yamamoto',
+      'description': '山本俊樹選手監修のプログラム',
+      'color': const Color(0xFF00ACC1), // Cyan
+      'icon': Icons.fitness_center,
+    },
+    {
       'name': '5/3/1',
       'description': '週3回の頻度で行う筋力向上プログラム',
       'color': const Color(0xFF00ACC1), // Cyan
@@ -3802,6 +3806,97 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     }
   }
 
+  // Toshiki Yamamoto プログラムを登録
+  Future<void> _registerToshikiYamamotoProgram() async {
+    final maxWeight = double.tryParse(_currentWeightController.text);
+    if (maxWeight == null || maxWeight <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('現在のスクワットMAX重量を入力してください')),
+        );
+      }
+      return;
+    }
+
+    final sortedDays = List<int>.from(_selectedDays)..sort();
+    if (sortedDays.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('実行する曜日を選択してください')),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isRegistering = true;
+    });
+
+    try {
+      final startDate = DateUtils.dateOnly(_startDate);
+      final List<WorkoutSchedule> schedules = [];
+
+      // 70% 〜 80% の重量を計算
+      final lowWeight = _roundToNearest2_5(maxWeight * 0.70);
+      final highWeight = _roundToNearest2_5(maxWeight * 0.80);
+
+      // 4週間のサイクルを作成
+      int sessionsNeeded = 4 * sortedDays.length;
+      List<DateTime> workoutDates = [];
+      DateTime currentDate = startDate;
+
+      while (workoutDates.length < sessionsNeeded) {
+        if (sortedDays.contains(currentDate.weekday)) {
+          workoutDates.add(currentDate);
+        }
+        currentDate = currentDate.add(const Duration(days: 1));
+      }
+
+      for (int i = 0; i < workoutDates.length; i++) {
+        final scheduledDate = workoutDates[i];
+        final week = i ~/ sortedDays.length;
+        final dayIndex = i % sortedDays.length;
+
+        final workoutDetails =
+            'バックスクワット: 5〜10回 x 10セット目安\n重量範囲: ${lowWeight.toStringAsFixed(1)}kg 〜 ${highWeight.toStringAsFixed(1)}kg\n※フォーム崩れで即終了';
+
+        schedules.add(WorkoutSchedule(
+          id: 0,
+          scheduledDate: scheduledDate,
+          isCompleted: false,
+          menuTitle: 'Toshiki Yamamoto',
+          menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}',
+          workoutDetails: workoutDetails,
+          sessionTitle: 'High Volume Squat',
+        ));
+      }
+
+      await _apiService.addSchedules(schedules);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Toshiki Yamamoto プログラムをカレンダーに登録しました'),
+            backgroundColor: Color(0xFF00ACC1),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('登録に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRegistering = false;
+        });
+      }
+    }
+  }
+
   // 5/3/1 プログラムを登録
   Future<void> _register531Program() async {
     debugPrint('[LOG] _register531Program called.');
@@ -4150,6 +4245,276 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     );
   }
 
+  // --- Toshiki Yamamoto UI Helpers ---
+
+  Widget _buildSectionHeader(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingCard(String title, String value, String note, IconData icon) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: const Color(0xFF00ACC1), size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF424242))),
+                if (note.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(note, style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepCard(int step, String title, String description) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: const BoxDecoration(
+              color: Color(0xFF424242),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              step.toString(),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF212121))),
+                const SizedBox(height: 6),
+                Text(
+                  description,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700, height: 1.5, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRuleCard(String title, String description, Color accentColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accentColor.withValues(alpha: 0.2), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.gpp_maybe_rounded, color: accentColor, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: accentColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            description,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade800, height: 1.5, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showYamamotoProgramDetails(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxWidth: 500), // PCや大画面向け
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'プログラムの詳細解説',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                const Divider(height: 32),
+                Expanded(
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      scrollbarTheme: ScrollbarThemeData(
+                        thumbColor: WidgetStateProperty.all(const Color(0xFF00ACC1).withValues(alpha: 0.5)),
+                        thickness: WidgetStateProperty.all(6),
+                        radius: const Radius.circular(10),
+                        interactive: true,
+                      ),
+                    ),
+                    child: Scrollbar(
+                      thumbVisibility: true, // 常にバーを表示
+                      trackVisibility: true, // トラックも表示して位置をわかりやすく
+                      child: ListView(
+                        padding: const EdgeInsets.only(right: 16), // バーとの重なり防止
+                        children: [
+                          // 📊 基本設定セクション
+                          _buildSectionHeader('📊 基本設定', 'MAX 120kgの場合の目安'),
+                          const SizedBox(height: 16),
+                          _buildSettingCard('扱う重量', '85kg 〜 95kg', 'MAXの70%〜80%', Icons.scale),
+                          _buildSettingCard('1セットの回数', '5回 〜 10回', 'コンディションに合わせて調整', Icons.repeat),
+                          _buildSettingCard('セット数', '10セット前後', '限界の一歩手前まで', Icons.layers),
+                          _buildSettingCard('トレーニング頻度', '週4〜5日', '週2日は必ず休む', Icons.calendar_month),
+                          
+                          const SizedBox(height: 32),
+
+                          // 🏋️ 1日のトレーニングの進め方
+                          _buildSectionHeader('🏋️ 1日のトレーニングの進め方', 'コンディションに合わせた柔軟な調整'),
+                          const SizedBox(height: 16),
+                          _buildStepCard(
+                            1,
+                            '重量の選択',
+                            'その日のコンディションに合わせて、MAXの70%〜80%の中で重量を選びます。調子が良い日は重めで少なめ、疲労がある日は軽めで多めに設定します。',
+                          ),
+                          _buildStepCard(
+                            2,
+                            'ひたすら繰り返す',
+                            '選んだ重量で「5〜10回」のセットを、限界が来る一歩手前までひたすら繰り返します。',
+                          ),
+                          _buildStepCard(
+                            3,
+                            '終了のサイン',
+                            '疲労により「フォームが崩れそうになった時点」で、その日のスクワットは即終了します。無理をして回数をこなす必要はありません。',
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // 📈 重量アップのステップ
+                          _buildSectionHeader('📈 重量アップのステップ', '段階的な伸ばし方'),
+                          const SizedBox(height: 16),
+                          _buildStepCard(
+                            1,
+                            'まずは「量」を伸ばす',
+                            '最初は同じ重量のまま、正しいフォームでこなせるセット数や回数を増やしていくことに集中します。',
+                          ),
+                          _buildStepCard(
+                            2,
+                            '余裕が出たら重りを足す',
+                            '上限の重量で、8〜10回を5セット以上など、余裕を持ってこなせる日が増えたらベースを2.5〜5kg引き上げます。',
+                          ),
+                          _buildStepCard(
+                            3,
+                            '1〜2ヶ月後にMAX再測定',
+                            'ディロード（軽い休養）を挟んでからMAX測定に挑戦します。記録が伸びていれば、新しい重量でステップ1に戻ります。',
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // ⚠️ 絶対に守るべき3つの鉄則
+                          _buildSectionHeader('⚠️ 絶対に守るべき3つの鉄則', '怪我を防ぎ着実に成長するために'),
+                          const SizedBox(height: 16),
+                          _buildRuleCard('絶対にフォームを崩さない', 'これが最優先事項です。回数や重量を追うあまり、フォームが崩れるのは本末転倒です。', Colors.orange),
+                          _buildRuleCard('その日のノリで大幅に重量を上げない', '急な増量は関節や神経系のオーバーワークを招き、怪我に繋がります。', Colors.red),
+                          _buildRuleCard('無理をしない勇気を持つ', 'きれいなフォームでできない日は、潔くセットを終えるか、スパッと休んでください。', Colors.blue),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF424242),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18), // パディングでゆとりを持たせる
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      '閉じる',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        height: 1.2, // 行の高さを調整して見切れを防止
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8), // 最下部に少し余白を追加
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildStartDateCard() {
     return Card(
       elevation: 0,
@@ -4308,62 +4673,145 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isCustom) {
-      // カスタムプログラム専用のUI
+    if (widget.workoutName == 'Toshiki Yamamoto') {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.workoutName)),
+        appBar: AppBar(
+          title: const Text('Toshiki Yamamoto', style: TextStyle(fontWeight: FontWeight.w900)),
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.white, Color(0xFFF5F5F5)],
+              ),
+            ),
+          ),
+        ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // プログラム説明カード
+              // ヒーローセクション
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF424242), Color(0xFF212121)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'SQUAT PROGRAM',
+                          style: TextStyle(
+                            color: Color(0xFF00ACC1),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2.0,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Icon(Icons.fitness_center, color: Colors.white24, size: 32),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Toshiki Yamamoto',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '山本俊樹選手監修の「ボリュームと頻度」を重視したスクワット強化プログラム',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // 詳細解説カード（ボタン代わり）
               Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(color: const Color(0xFF00ACC1).withValues(alpha: 0.2), width: 1.5),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 4,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF424242),
-                          borderRadius: BorderRadius.circular(2),
+                color: const Color(0xFF00ACC1).withValues(alpha: 0.03),
+                child: InkWell(
+                  onTap: () => _showYamamotoProgramDetails(context),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(Icons.menu_book_rounded, color: Color(0xFF00ACC1), size: 28),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.workoutName,
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '自作プログラムをスケジュールに登録します',
-                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                            ),
-                          ],
+                        const SizedBox(width: 20),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'プログラムの詳細解説',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '基本設定や重量アップのステップを確認',
+                                style: TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Hero(
-                        tag: 'workout_icon_${widget.workoutName}',
-                        child: const Icon(Icons.fitness_center, color: Colors.black12, size: 40),
-                      ),
-                    ],
+                        const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 28),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+
+              const SizedBox(height: 48),
               
-              // 実行日表示
+              // 登録セクション
+              const Text(
+                'プログラムをスケジュールに登録',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF424242)),
+              ),
+              const SizedBox(height: 16),
+              _buildStartDateCard(),
+              const SizedBox(height: 12),
+              
+              // 曜日選択セクション
               Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -4372,77 +4820,36 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.calendar_today, color: Colors.grey.shade600, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '実行予定日',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('yyyy年MM月dd日 (E)', 'ja').format(_startDate),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
+                      Text(
+                        '実行する曜日を選択 (週4〜5回推奨)',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
                       ),
-                      TextButton(
-                        onPressed: _selectStartDate,
-                        child: const Text('変更'),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildWeekdayButton(1, '月'),
+                          _buildWeekdayButton(2, '火'),
+                          _buildWeekdayButton(3, '水'),
+                          _buildWeekdayButton(4, '木'),
+                          _buildWeekdayButton(5, '金'),
+                          _buildWeekdayButton(6, '土'),
+                          _buildWeekdayButton(7, '日'),
+                        ],
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-
-              // トレーニング内容の編集セクション
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('トレーニング内容', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  TextButton.icon(
-                    onPressed: _addExercise,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('種目を追加'),
-                  ),
-                ],
-              ),
               const SizedBox(height: 12),
               
-              if (_editableExercises.isNotEmpty)
-                                    ...List.generate(_editableExercises.length, (index) => _buildEditableExerciseCard(index, const Color(0xFF00ACC1)))              else
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Text('種目が設定されていません'),
-                  ),
-                ),
-
-              const SizedBox(height: 32),
-              
-              // 登録ボタン
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isRegistering ? null : _registerCustomInstance,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF424242),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isRegistering
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                      : const Text('独自プログラムとして登録', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-              ),
+              _buildWeightInputCard('現在のスクワットMAX重量', _currentWeightController),
               const SizedBox(height: 24),
+              _buildRegisterButton(_registerToshikiYamamotoProgram),
+              const SizedBox(height: 40),
             ],
           ),
         ),

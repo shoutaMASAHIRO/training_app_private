@@ -101,166 +101,159 @@ class _ProgressScreenState extends State<ProgressScreen> {
   Future<void> _showExerciseSelectionModal(BuildContext context, Function(String) onSelect) async {
     FocusScope.of(context).unfocus();
     
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
       builder: (context) {
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => Navigator.pop(context),
-          child: DraggableScrollableSheet(
-            initialChildSize: 0.7,
-            minChildSize: 0.5,
-            maxChildSize: 0.95,
-            builder: (context, scrollController) {
-              return GestureDetector(
-                onTap: () {},
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: Column(
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      const SizedBox(width: 48), // Spacer
+                      const Text(
+                        '種目を選択',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                          color: Color(0xFF424242),
+                        ),
+                      ),
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Container(
-                          width: 40,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(2.5),
-                          ),
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded, color: Color(0xFF424242), size: 20),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: Text(
-                          '種目を選択',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
-                            color: Colors.grey[800]
-                          ),
-                        ),
-                      ),
-                                        Expanded(
-                                          child: ListView(
-                                            controller: scrollController,
-                                            padding: const EdgeInsets.only(bottom: 30),
-                                                                      children: _categorizedExercises.entries.map((entry) {
-                                                                        final category = entry.key;
-                                                                        final exercises = entry.value;
-                                                                        
-                                                                        // このカテゴリ内でデータがある種目数をカウント
-                                                                        final availableCount = exercises.where((ex) => _availableExercises.contains(ex)).length;
-                                            
-                                                                        return Theme(
-                                                                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                                                                          child: ExpansionTile(
-                                                                            maintainState: false, // 軽量化
-                                                                            title: Row(
-                                                                              children: [
-                                                                                Expanded(
-                                                                                  child: Text(
-                                                                                    category,
-                                                                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF424242)),
-                                                                                  ),
-                                                                                ),
-                                                                                // データがある種目数 (赤)
-                                                                                if (availableCount > 0) ...[
-                                                                                  Container(
-                                                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                                                    decoration: BoxDecoration(
-                                                                                      color: Colors.red.shade50,
-                                                                                      borderRadius: BorderRadius.circular(10),
-                                                                                    ),
-                                                                                    child: Text(
-                                                                                      '$availableCount',
-                                                                                      style: const TextStyle(
-                                                                                        color: Colors.red,
-                                                                                        fontSize: 11,
-                                                                                        fontWeight: FontWeight.w900,
-                                                                                      ),
-                                                                                    ),
-                                                                                  ),
-                                                                                  const SizedBox(width: 6),
-                                                                                ],
-                                                                                // 合計種目数 (シアン)
-                                                                                Container(
-                                                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                                                  decoration: BoxDecoration(
-                                                                                    color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
-                                                                                    borderRadius: BorderRadius.circular(10),
-                                                                                  ),
-                                                                                  child: Text(
-                                                                                    '${exercises.length}',
-                                                                                    style: const TextStyle(
-                                                                                      color: Color(0xFF00ACC1),
-                                                                                      fontSize: 11,
-                                                                                      fontWeight: FontWeight.w900,
-                                                                                    ),
-                                                                                  ),
-                                                                                ),
-                                                                              ],
-                                                                            ),
-                                                                            collapsedIconColor: const Color(0xFF00ACC1),
-                                                                            iconColor: const Color(0xFF00ACC1),
-                                                                            children: exercises.map((exercise) {
-                                                                              final hasData = _availableExercises.contains(exercise);
-                                                                              return Container(
-                                                                                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                                                                                decoration: BoxDecoration(
-                                                                                  color: hasData ? Colors.red.withValues(alpha: 0.05) : Colors.transparent,
-                                                                                  borderRadius: BorderRadius.circular(12),
-                                                                                ),
-                                                                                child: ListTile(
-                                                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                                                                  leading: Container(
-                                                                                    padding: const EdgeInsets.all(8),
-                                                                                    decoration: BoxDecoration(
-                                                                                      color: hasData ? Colors.red.withValues(alpha: 0.1) : Colors.grey[50],
-                                                                                      borderRadius: BorderRadius.circular(8),
-                                                                                    ),
-                                                                                    child: Image.asset(
-                                                                                      'image/icons/$exercise.png',
-                                                                                      width: 96,
-                                                                                      height: 96,
-                                                                                      fit: BoxFit.contain,
-                                                                                      cacheWidth: 150, // 192 -> 150
-                                                                                      errorBuilder: (context, error, stackTrace) => Icon(
-                                                                                        Icons.fitness_center, 
-                                                                                        size: 48,
-                                                                                        color: hasData ? Colors.red.shade300 : Colors.grey.shade400
-                                                                                      ),
-                                                                                    ),
-                                                                                  ),
-                                                        title: Text(
-                                                          exercise,
-                                                          style: TextStyle(
-                                                            fontWeight: hasData ? FontWeight.w900 : FontWeight.bold, 
-                                                            fontSize: 15, 
-                                                            color: hasData ? Colors.red.shade900 : const Color(0xFF424242)
-                                                          ),
-                                                        ),
-                                                        trailing: hasData ? Icon(Icons.star_rounded, color: Colors.red.shade300, size: 18) : null,
-                                                        onTap: () {
-                                                          onSelect(exercise);
-                                                          Navigator.pop(context);
-                                                        },
-                                                      ),
-                                                    );
-                                                  }).toList(),
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                        ),                    ],
+                    ],
                   ),
                 ),
-              );
-            },
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.only(bottom: 30),
+                    children: _categorizedExercises.entries.map((entry) {
+                      final category = entry.key;
+                      final exercises = entry.value;
+                      final availableCount = exercises.where((ex) => _availableExercises.contains(ex)).length;
+
+                      return Theme(
+                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          maintainState: false,
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  category,
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF424242)),
+                                ),
+                              ),
+                              if (availableCount > 0) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade50,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$availableCount',
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00ACC1).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${exercises.length}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF00ACC1),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          collapsedIconColor: const Color(0xFF00ACC1),
+                          iconColor: const Color(0xFF00ACC1),
+                          children: exercises.map((exercise) {
+                            final hasData = _availableExercises.contains(exercise);
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: hasData ? Colors.red.withValues(alpha: 0.05) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: hasData ? Colors.red.withValues(alpha: 0.1) : Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Image.asset(
+                                    'image/icons/$exercise.png',
+                                    width: 96,
+                                    height: 96,
+                                    fit: BoxFit.contain,
+                                    cacheWidth: 150,
+                                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.fitness_center, size: 48, color: Colors.grey),
+                                  ),
+                                ),
+                                title: Text(
+                                  exercise,
+                                  style: TextStyle(
+                                    fontWeight: hasData ? FontWeight.w900 : FontWeight.bold, 
+                                    fontSize: 15, 
+                                    color: hasData ? Colors.red.shade900 : const Color(0xFF424242)
+                                  ),
+                                ),
+                                trailing: hasData ? const Icon(Icons.star_rounded, color: Colors.red, size: 18) : null,
+                                onTap: () {
+                                  onSelect(exercise);
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

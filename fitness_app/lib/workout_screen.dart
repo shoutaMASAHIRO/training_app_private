@@ -22,6 +22,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   // 各セットの状態 (null: 未完了, true: 成功, false: 失敗)
   List<bool?> _setStatuses = [];
+  bool _hasMargin = true; // 余裕があったかどうかのフラグ (初期値はtrue)
   // 展開されたトレーニング内容
   List<Map<String, dynamic>> _expandedExercises = [];
 
@@ -43,50 +44,81 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final menuTitle = _todaysSchedule.menuTitle;
 
     final lines = details.split('\n');
-    for (var line in lines) {
-      if (line.isEmpty) continue;
+    
+    // Toshiki Yamamoto プログラム特有の解析
+    if (menuTitle == 'Toshiki Yamamoto') {
+      String repsLabel = '5〜10';
+      int numSets = 10;
+      String weightRange = '';
 
-      String name = menuTitle;
-      String content = line;
-      if (line.contains(':')) {
-        final parts = line.split(': ');
-        name = parts[0];
-        content = parts.length > 1 ? parts[1] : '';
+      for (var line in lines) {
+        if (line.contains('回 x') && line.contains('セット目安')) {
+          final match = RegExp(r'(\d+〜\d+)回\s*x\s*(\d+)セット').firstMatch(line);
+          if (match != null) {
+            repsLabel = match.group(1)!;
+            numSets = int.parse(match.group(2)!);
+          }
+        } else if (line.contains('重量範囲:')) {
+          weightRange = line.replaceFirst('重量範囲:', '').trim();
+        }
       }
 
       List<String> expandedSets = [];
-      final segments = content.split(', ').where((s) => s.isNotEmpty).toList();
-      for (var segment in segments) {
-        final regExp = RegExp(r'(\d+\+?)\s*[xX]\s*(\d+\+?)');
-        final match = regExp.firstMatch(segment);
-        if (match != null) {
-          final val1Str = match.group(1)!;
-          final val2Str = match.group(2)!;
-
-          int numSets;
-          String repsLabel;
-
-          if (menuTitle == 'Smolov Jr.' || menuTitle == '5/3/1') {
-            repsLabel = val1Str.replaceAll('+', '～限界');
-            numSets = int.parse(val2Str.replaceAll('+', ''));
-          } else {
-            numSets = int.parse(val1Str.replaceAll('+', ''));
-            repsLabel = val2Str;
-          }
-
-          String weight = segment.contains('@') ? segment.split('@')[1].trim() : '';
-          for (int i = 0; i < numSets; i++) {
-            expandedSets.add('$repsLabel reps ${weight.isNotEmpty ? "@ $weight" : ""}');
-          }
-        } else {
-          expandedSets.add(segment);
-        }
+      for (int i = 0; i < numSets; i++) {
+        expandedSets.add('$repsLabel reps ${weightRange.isNotEmpty ? "@ $weightRange" : ""}');
       }
-      if (expandedSets.isNotEmpty) {
-        _expandedExercises.add({
-          'name': name,
-          'sets': expandedSets,
-        });
+      
+      _expandedExercises.add({
+        'name': 'バックスクワット', // 山本選手のメイン種目
+        'sets': expandedSets,
+      });
+    } else {
+      // 既存の解析ロジック
+      for (var line in lines) {
+        if (line.isEmpty) continue;
+
+        String name = menuTitle;
+        String content = line;
+        if (line.contains(':')) {
+          final parts = line.split(': ');
+          name = parts[0];
+          content = parts.length > 1 ? parts[1] : '';
+        }
+
+        List<String> expandedSets = [];
+        final segments = content.split(', ').where((s) => s.isNotEmpty).toList();
+        for (var segment in segments) {
+          final regExp = RegExp(r'(\d+\+?)\s*[xX]\s*(\d+\+?)');
+          final match = regExp.firstMatch(segment);
+          if (match != null) {
+            final val1Str = match.group(1)!;
+            final val2Str = match.group(2)!;
+
+            int numSets;
+            String repsLabel;
+
+            if (menuTitle == 'Smolov Jr.' || menuTitle == '5/3/1') {
+              repsLabel = val1Str.replaceAll('+', '～限界');
+              numSets = int.parse(val2Str.replaceAll('+', ''));
+            } else {
+              numSets = int.parse(val1Str.replaceAll('+', ''));
+              repsLabel = val2Str;
+            }
+
+            String weight = segment.contains('@') ? segment.split('@')[1].trim() : '';
+            for (int i = 0; i < numSets; i++) {
+              expandedSets.add('$repsLabel reps ${weight.isNotEmpty ? "@ $weight" : ""}');
+            }
+          } else {
+            expandedSets.add(segment);
+          }
+        }
+        if (expandedSets.isNotEmpty) {
+          _expandedExercises.add({
+            'name': name,
+            'sets': expandedSets,
+          });
+        }
       }
     }
 
@@ -295,9 +327,28 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     Widget detailWidget;
     if (detail.contains('reps') && detail.contains('@')) {
       final parts = detail.split('@');
-      detailWidget = Row(children: [Text(parts[0].trim(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF212121))), const SizedBox(width: 8), const Icon(Icons.fitness_center, color: Color(0xFF00ACC1), size: 14), const SizedBox(width: 8), Text(parts[1].trim(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF00ACC1)))]);
+      detailWidget = Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(parts[0].trim(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF212121))),
+          const SizedBox(width: 6),
+          const Icon(Icons.fitness_center, color: Color(0xFF00ACC1), size: 14),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              parts[1].trim(),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF00ACC1)),
+              overflow: TextOverflow.visible, // 省略せずに見せる
+            ),
+          ),
+        ],
+      );
     } else {
-      detailWidget = Text(detail, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF212121)));
+      detailWidget = Text(
+        detail,
+        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF212121)),
+        textAlign: TextAlign.end,
+      );
     }
 
     return Container(
@@ -307,10 +358,12 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       child: Row(
         children: [
           _buildStatusIcons(globalIndex),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Text('Set $setNum', style: const TextStyle(color: Color(0xFF424242), fontWeight: FontWeight.w900, fontSize: 14)),
-          const Spacer(),
-          detailWidget,
+          const SizedBox(width: 8),
+          Expanded(
+            child: detailWidget,
+          ),
         ],
       ),
     );
@@ -416,131 +469,164 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   Widget _buildCompleteButton() {
-    return ElevatedButton(
-      onPressed: () async {
-        final successCount = _setStatuses.where((s) => s == true).length;
-        final failCount = _setStatuses.where((s) => s == false).length;
-        final totalSets = _setStatuses.length;
-        final incompleteCount = totalSets - (successCount + failCount);
+    return Column(
+      children: [
+        // 余裕があったかどうかのチェックボックス
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: _hasMargin ? Colors.grey.shade300 : Colors.orange.shade300,
+              width: _hasMargin ? 1 : 2,
+            ),
+          ),
+          color: _hasMargin ? Colors.white : Colors.orange.shade50,
+          child: CheckboxListTile(
+            title: const Text(
+              '余力を残して終了できた',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF424242)),
+            ),
+            subtitle: Text(
+              _hasMargin ? 'フォームを崩さず、限界の一歩手前で終了' : '限界まで追い込みすぎた、またはフォームが崩れた',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+            ),
+            value: _hasMargin,
+            onChanged: (val) {
+              setState(() {
+                _hasMargin = val ?? true;
+              });
+            },
+            activeColor: const Color(0xFF00ACC1),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: () async {
+            final successCount = _setStatuses.where((s) => s == true).length;
+            final failCount = _setStatuses.where((s) => s == false).length;
+            final totalSets = _setStatuses.length;
+            final incompleteCount = totalSets - (successCount + failCount);
 
-        // 確認ダイアログを表示
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: const Column(
-              children: [
-                Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00ACC1), size: 48),
-                SizedBox(height: 16),
-                Text('ワークアウトの完了', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('本日のトレーニングを終了しますか？', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161))),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildStatColumn('成功', successCount, const Color(0xFF00ACC1)),
-                      _buildStatColumn('失敗', failCount, Colors.red),
-                      _buildStatColumn('未完了', incompleteCount, Colors.orange),
-                    ],
-                  ),
+            // 確認ダイアログを表示
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                title: const Column(
+                  children: [
+                    Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00ACC1), size: 48),
+                    SizedBox(height: 16),
+                    Text('ワークアウトの完了', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                  ],
                 ),
-                if (incompleteCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Text(
-                      '※未完了のセットがあるため、\nこの記録は「未達成」として保存されます。',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.orange.shade900, // より濃いオレンジに変更して視認性を向上
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('本日のトレーニングを終了しますか？', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF616161))),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildStatColumn('成功', successCount, const Color(0xFF00ACC1)),
+                          _buildStatColumn('失敗', failCount, Colors.red),
+                          _buildStatColumn('未完了', incompleteCount, Colors.orange),
+                        ],
                       ),
                     ),
-                  ),
-              ],
-            ),
-            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            actions: [
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56, // 高さを増やしてゆとりを持たせる
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00ACC1),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: EdgeInsets.zero, // SizedBoxで制御
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    if (incompleteCount > 0 || !_hasMargin)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(
+                          !_hasMargin 
+                            ? '※「余力なし」のため、\nこの記録は「未達成」として保存されます。'
+                            : '※未完了のセットがあるため、\nこの記録は「未達成」として保存されます。',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.orange.shade900,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
-                      child: const Text('完了する', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, height: 1.2)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: TextButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: EdgeInsets.zero,
+                  ],
+                ),
+                actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                actions: [
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00ACC1),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('完了する', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+                        ),
                       ),
-                      child: Text('まだ続ける', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 15)),
-                    ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text('まだ続ける', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        );
+            );
 
-        if (confirmed != true) return;
+            if (confirmed != true) return;
 
-        try {
-          // 全てのセットが成功している場合のみ「成功」とみなす
-          final bool isOverallSuccess = (successCount == totalSets);
-          final String resultStatus = isOverallSuccess ? 'success' : 'fail';
+            try {
+              // 全てのセットが成功しており、かつ「余裕があった」場合のみ「成功」とみなす
+              final bool isOverallSuccess = (successCount == totalSets) && _hasMargin;
+              final String resultStatus = isOverallSuccess ? 'success' : 'fail';
 
-          await _apiService.completeSchedule(_todaysSchedule.id);
-          final log = WorkoutLog(
-            completedDate: DateTime.now(),
-            menuTitle: _todaysSchedule.menuTitle,
-            workoutDetails: _todaysSchedule.workoutDetails,
-            sessionTitle: _todaysSchedule.sessionTitle,
-            successCount: successCount,
-            failCount: totalSets - successCount, // 未完了分も失敗としてカウントし「未達成」にする
-          );
-          await _apiService.addLog(log);
-          
-          if (mounted) {
-            String message = isOverallSuccess 
-                ? 'ワークアウト完了！ 🎉' 
-                : 'ワークアウト完了（一部未達成あり）';
-            Color snackColor = isOverallSuccess ? const Color(0xFF00ACC1) : Colors.orange;
-            
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(message), 
-              backgroundColor: snackColor,
-            ));
-            Navigator.pop(context, resultStatus);
-          }
-        } catch (e) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red));
-        }
-      },
-      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00ACC1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-      child: const Text('ワークアウト完了', style: TextStyle(fontWeight: FontWeight.bold)),
+              await _apiService.completeSchedule(_todaysSchedule.id);
+              final log = WorkoutLog(
+                completedDate: DateTime.now(),
+                menuTitle: _todaysSchedule.menuTitle,
+                workoutDetails: _todaysSchedule.workoutDetails,
+                sessionTitle: _todaysSchedule.sessionTitle,
+                successCount: successCount,
+                failCount: totalSets - successCount,
+              );
+              await _apiService.addLog(log);
+              
+              if (mounted) {
+                String message = isOverallSuccess 
+                    ? 'ワークアウト完了！ 🎉' 
+                    : (!_hasMargin ? '完了（余力なしのため未達成扱い）' : 'ワークアウト完了（一部未達成あり）');
+                Color snackColor = isOverallSuccess ? const Color(0xFF00ACC1) : Colors.orange;
+                
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(message), 
+                  backgroundColor: snackColor,
+                ));
+                Navigator.pop(context, resultStatus);
+              }
+            } catch (e) {
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('エラー: $e'), backgroundColor: Colors.red));
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00ACC1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+          child: const Text('ワークアウト完了', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 
