@@ -352,7 +352,7 @@ class DatabaseService {
     }
   }
 
-  /// 特定メニュー名とセッションタイトルに合致するスケジュールを一括削除
+  /// 特定メニュー名とセッションタイトルに合致する「未完了」スケジュールを一括削除
   Future<void> deleteSchedulesByMenuTitleAndSessionTitle(String menuTitle, String? sessionTitle) async {
     try {
       final db = await _dbHelper.database;
@@ -360,21 +360,20 @@ class DatabaseService {
       if (sessionTitle != null && sessionTitle.isNotEmpty) {
         count = await db.delete(
           DatabaseHelper.tableSchedules,
-          where: '${DatabaseHelper.colMenuTitle} = ? AND ${DatabaseHelper.colSessionTitle} = ?',
+          where: '${DatabaseHelper.colMenuTitle} = ? AND ${DatabaseHelper.colSessionTitle} = ? AND ${DatabaseHelper.colIsCompleted} = 0',
           whereArgs: [menuTitle, sessionTitle],
         );
       } else {
-        // sessionTitle がない場合は menuTitle のみで削除（以前の挙動に戻す）
         count = await db.delete(
           DatabaseHelper.tableSchedules,
-          where: '${DatabaseHelper.colMenuTitle} = ? AND ${DatabaseHelper.colSessionTitle} IS NULL',
+          where: '${DatabaseHelper.colMenuTitle} = ? AND ${DatabaseHelper.colSessionTitle} IS NULL AND ${DatabaseHelper.colIsCompleted} = 0',
           whereArgs: [menuTitle],
         );
       }
-      debugPrint('[DB] Deleted $count schedules with menuTitle: $menuTitle and sessionTitle: $sessionTitle');
+      debugPrint('[DB] Batch deleted $count incomplete schedules for: $menuTitle ($sessionTitle)');
     } catch (e) {
-      debugPrint('[DB] Error deleting schedules: $e');
-      throw Exception('Failed to delete schedules: $e');
+      debugPrint('[DB] Error batch deleting schedules: $e');
+      throw Exception('Failed to batch delete schedules: $e');
     }
   }
 

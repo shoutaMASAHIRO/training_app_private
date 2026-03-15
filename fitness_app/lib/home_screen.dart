@@ -3674,7 +3674,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         return;
       }
 
-      // Generate all valid workout dates chronologically
+      // Generate all valid workout dates chronologically based on NEW selected days
       List<DateTime> workoutDates = [];
       DateTime currentDate = _startDate;
       int sessionsNeeded = 12 * sortedDays.length; // 12 weeks * days per week
@@ -4098,16 +4098,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   Future<void> _cleanupExistingProgram(String menuTitle) async {
     if (!_isEditing) return;
     
-    final allSchedules = await _apiService.getSchedules();
-    final toDelete = allSchedules.where((s) => 
-      s.menuTitle == menuTitle && 
-      !s.isCompleted &&
-      (_targetSessionTitle == null || s.sessionTitle == _targetSessionTitle)
-    ).toList();
-    
-    for (var s in toDelete) {
-      await _apiService.deleteSchedule(s.id);
-    }
+    // 一括削除メソッドを使用してパフォーマンスを劇的に向上させる
+    await _apiService.deleteSchedulesByMenuTitleAndSessionTitle(menuTitle, _targetSessionTitle);
   }
 
   // Toshiki Yamamoto プログラムを登録
