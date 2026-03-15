@@ -800,6 +800,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 32),
                       
+                      // 登録済みプログラム編集セクション（カード形式）
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Card(
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(color: Colors.orange.shade300.withValues(alpha: 0.5), width: 1.5),
+                          ),
+                          color: Colors.orange.shade50.withValues(alpha: 0.5),
+                          child: InkWell(
+                            onTap: () => _showEditProgramSelectionModal(context, schedules),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade100,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Icon(Icons.edit_calendar_rounded, color: Colors.orange.shade800, size: 28),
+                                  ),
+                                  const SizedBox(width: 20),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '登録済みプログラム編集',
+                                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF212121)),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          '期間、曜日、重量などの再設定',
+                                          style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right_rounded, color: Colors.orange.shade300, size: 28),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      
                       _buildMenuManagementSection(schedules),
                       const SizedBox(height: 32),
                       
@@ -1140,6 +1191,136 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showEditProgramSelectionModal(BuildContext context, List<WorkoutSchedule> schedules) {
+    // 未完了のプログラムのみを対象に、(タイトル + セッション名) でグループ化
+    final activeSchedules = schedules.where((s) => !s.isCompleted).toList();
+    final Map<String, List<WorkoutSchedule>> groups = {};
+    for (var s in activeSchedules) {
+      // 有名プログラム(SL, Texas等)はセッション名が変わるためタイトルのみでまとめるが、
+      // Smolov Jrや山本プログラム、5/3/1等は種目ごとに分ける
+      String groupKey = s.menuTitle;
+      if (['Smolov Jr.', '10x10', '5/3/1', 'Toshiki Yamamoto'].contains(s.menuTitle)) {
+        if (s.sessionTitle != null && s.sessionTitle!.isNotEmpty) {
+          groupKey = '${s.menuTitle} (${s.sessionTitle})';
+        }
+      }
+      
+      if (!groups.containsKey(groupKey)) groups[groupKey] = [];
+      groups[groupKey]!.add(s);
+    }
+
+    if (groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('現在カレンダーに登録されているプログラムはありません')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('編集するプログラムを選択', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF212121))),
+                    IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
+                  ],
+                ),
+                const Divider(height: 24),
+                Flexible(
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(right: 12),
+                      children: groups.entries.map((entry) {
+                        final displayTitle = entry.key;
+                        final firstSchedule = entry.value.first;
+                        final title = firstSchedule.menuTitle;
+                        final sessionTitle = firstSchedule.sessionTitle;
+                        final count = entry.value.length;
+                        final firstDate = entry.value.map((s) => s.scheduledDate).reduce((a, b) => a.isBefore(b) ? a : b);
+                        
+                        // 重量情報の抽出（プレビュー用）
+                        String weightPreview = '';
+                        if (firstSchedule.workoutDetails != null && firstSchedule.workoutDetails!.contains('@')) {
+                          final match = RegExp(r'@\s*([\d\.]+kg)').firstMatch(firstSchedule.workoutDetails!);
+                          if (match != null) weightPreview = ' / ${match.group(1)}';
+                        } else if (firstSchedule.workoutDetails != null && firstSchedule.workoutDetails!.contains('重量範囲')) {
+                          final match = RegExp(r'重量範囲:\s*([\d\.]+kg\s*〜\s*[\d\.]+kg)').firstMatch(firstSchedule.workoutDetails!);
+                          if (match != null) weightPreview = ' / ${match.group(1)}';
+                        }
+
+                        return Card(
+                          elevation: 0,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.pop(context);
+                              // 編集モードで詳細画面へ。セッション情報も渡す
+                              Navigator.pushNamed(
+                                context,
+                                '/workout_detail',
+                                arguments: {
+                                  'workoutName': title,
+                                  'sessionTitle': sessionTitle,
+                                  'startDate': firstDate,
+                                  'isEditing': true,
+                                },
+                              ).then((_) => _refreshData());
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(color: const Color(0xFF00ACC1).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                                    child: const Icon(Icons.fitness_center, color: Color(0xFF00ACC1)),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                                        const SizedBox(height: 4),
+                                        Text('全$count回$weightPreview', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        Text('${DateFormat('yyyy/MM/dd').format(firstDate)} 開始', style: TextStyle(color: Colors.grey.shade400, fontSize: 11, fontWeight: FontWeight.w500)),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2911,6 +3092,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
   // 有名プログラム用の複数種目入力管理 (動的リスト)
   List<Map<String, dynamic>> _programExercises = [];
+  bool _isEditing = false; // 編集モードフラグ
+  String? _targetSessionTitle; // 編集対象のセッション名 (種目名など)
 
   List<DropdownMenuItem<String>> _buildDropdownItems(Color themeColor) {
     List<DropdownMenuItem<String>> items = [];
@@ -2992,13 +3175,25 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   void initState() {
     super.initState();
     _startDate = widget.startDate ?? DateTime.now();
-    
+
     // カスタムプログラムの場合、詳細をパースして編集用リストを初期化
     if (widget.isCustom && widget.details != null) {
       _parseDetailsToEditable(widget.details!);
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 編集モードの判定
+    final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args['isEditing'] == true) {
+      setState(() {
+        _isEditing = true;
+        _targetSessionTitle = args['sessionTitle'] as String?;
+      });
+    }
+  }
   void _addProgramExercise() {
     final weight = double.tryParse(_currentWeightController.text);
     final name = _exerciseKindController.text;
@@ -3433,20 +3628,43 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     setState(() => _isRegistering = true);
 
     try {
+      // 編集モードの場合は既存分を削除
+      await _cleanupExistingProgram('StrongLifts 5x5');
+
       final List<WorkoutSchedule> schedules = [];
       // スタート重量は1RMの75%とする。2.5kg刻みに丸める
       final weightsMap = { for (var ex in _programExercises) ex['name'] as String : _roundToNearest2_5((ex['weight'] as double) * 0.75) };
 
-      final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
-      final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
-      final rows = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('row')).toList();
-      final ohps = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('press') && !e['name'].toString().toLowerCase().contains('bench')).toList();
-      final deadlifts = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('deadlift')).toList();
-      final others = _programExercises.where((e) => 
-        !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') &&
-        !e['name'].toString().toLowerCase().contains('row') && !e['name'].toString().toLowerCase().contains('press') &&
-        !e['name'].toString().toLowerCase().contains('deadlift')
-      ).toList();
+      final squats = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('squat') || name.contains('スクワット');
+      }).toList();
+      final benches = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('bench') || name.contains('ベンチプレス');
+      }).toList();
+      final rows = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('row') || name.contains('ロー');
+      }).toList();
+      final ohps = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return (name.contains('press') || name.contains('プレス')) && 
+               !name.contains('bench') && !name.contains('ベンチ');
+      }).toList();
+      final deadlifts = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('deadlift') || name.contains('デッドリフト');
+      }).toList();
+      final others = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        final isMain = name.contains('squat') || name.contains('スクワット') ||
+                       name.contains('bench') || name.contains('ベンチプレス') ||
+                       name.contains('row') || name.contains('ロー') ||
+                       (name.contains('press') || name.contains('プレス')) ||
+                       name.contains('deadlift') || name.contains('デッドリフト');
+        return !isMain;
+      }).toList();
 
       final sortedDays = List<int>.from(_selectedDays)..sort();
       if (sortedDays.isEmpty) {
@@ -3487,10 +3705,26 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           for (var ex in ohps) details.write('${ex['name']}: 5x5 @ ${_roundToNearest2_5(weightsMap[ex['name']]! + bCount * 2.5).toStringAsFixed(1)}kg\n');
           for (var ex in deadlifts) details.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(weightsMap[ex['name']]! + bCount * 5.0).toStringAsFixed(1)}kg\n');
         }
-        for (var ex in others) details.write('${ex['name']}: 3x10 @ ${_roundToNearest2_5((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
+        for (var ex in others) {
+          details.write('${ex['name']}: 3x10 @ ${_roundToNearest2_5((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
+        }
 
         if (details.isNotEmpty) {
-          schedules.add(WorkoutSchedule(id: 0, scheduledDate: scheduledDate, isCompleted: false, menuTitle: 'StrongLifts 5x5', menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}', workoutDetails: details.toString().trim(), sessionTitle: isWorkoutA ? 'Workout A' : 'Workout B'));
+          String sessionTitle = 'Accessory Workout';
+          final detailsStr = details.toString();
+          if (detailsStr.contains('スクワット') || detailsStr.contains('Squat')) {
+            sessionTitle = isWorkoutA ? 'Workout A' : 'Workout B';
+          }
+
+          schedules.add(WorkoutSchedule(
+            id: 0,
+            scheduledDate: workoutDates[i],
+            isCompleted: false,
+            menuTitle: 'StrongLifts 5x5',
+            menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}',
+            workoutDetails: detailsStr.trim(),
+            sessionTitle: sessionTitle,
+          ));
         }
       }
       await _apiService.addSchedules(schedules);
@@ -3514,15 +3748,38 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     setState(() => _isRegistering = true);
 
     try {
+      // 編集モードの場合は既存分を削除
+      await _cleanupExistingProgram('Texas Method');
+
       final List<WorkoutSchedule> schedules = [];
       // 5RMを最大重量の85%と推定し、2.5kg刻みに丸める
       final fiveRMMap = { for (var ex in _programExercises) ex['name'] as String : _roundToNearest2_5((ex['weight'] as double) * 0.85) };
 
-      final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
-      final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
-      final deadlifts = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('deadlift')).toList();
-      final presses = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('press') && !e['name'].toString().toLowerCase().contains('bench')).toList();
-      final others = _programExercises.where((e) => !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') && !e['name'].toString().toLowerCase().contains('deadlift') && !e['name'].toString().toLowerCase().contains('press')).toList();
+      final squats = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('squat') || name.contains('スクワット');
+      }).toList();
+      final benches = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('bench') || name.contains('ベンチプレス');
+      }).toList();
+      final deadlifts = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('deadlift') || name.contains('デッドリフト');
+      }).toList();
+      final presses = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return (name.contains('press') || name.contains('プレス')) && 
+               !name.contains('bench') && !name.contains('ベンチ');
+      }).toList();
+      final others = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        final isMain = name.contains('squat') || name.contains('スクワット') ||
+                       name.contains('bench') || name.contains('ベンチプレス') ||
+                       (name.contains('press') || name.contains('プレス')) ||
+                       name.contains('deadlift') || name.contains('デッドリフト');
+        return !isMain;
+      }).toList();
 
       final sortedDays = List<int>.from(_selectedDays)..sort();
       if (sortedDays.length < 3) {
@@ -3584,6 +3841,16 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         for (var ex in benches) intens.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
         for (var ex in presses) intens.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(fiveRMMap[ex['name']]! + week * 2.5).toStringAsFixed(1)}kg\n');
         for (var ex in deadlifts) intens.write('${ex['name']}: 1x5 @ ${_roundToNearest2_5(fiveRMMap[ex['name']]! + week * 5.0).toStringAsFixed(1)}kg\n');
+        
+        // 追加: その他の種目（カーフレイズ等）を各日に追加
+        for (var ex in others) {
+          vol.write('${ex['name']}: 3x10 @ ${_roundToNearest2_5((ex['weight'] as double) * 0.5).toStringAsFixed(1)}kg\n');
+          rec.write('${ex['name']}: 2x10 @ ${_roundToNearest2_5((ex['weight'] as double) * 0.4).toStringAsFixed(1)}kg\n');
+          intens.write('${ex['name']}: 3x8 @ ${_roundToNearest2_5((ex['weight'] as double) * 0.6).toStringAsFixed(1)}kg\n');
+        }
+
+        if (vol.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d1date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Volume', workoutDetails: vol.toString().trim(), sessionTitle: 'Volume Day'));
+        if (rec.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d2date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Recovery', workoutDetails: rec.toString().trim(), sessionTitle: 'Recovery Day'));
         if (intens.isNotEmpty) schedules.add(WorkoutSchedule(id: 0, scheduledDate: d3date, isCompleted: false, menuTitle: 'Texas Method', menuDifficulty: 'Week ${week + 1} Intensity', workoutDetails: intens.toString().trim(), sessionTitle: 'Intensity Day'));
       }
       await _apiService.addSchedules(schedules);
@@ -3607,13 +3874,31 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     setState(() => _isRegistering = true);
 
     try {
+      // 編集モードの場合は既存分を削除
+      await _cleanupExistingProgram(programName);
+
       final List<WorkoutSchedule> schedules = [];
       final weightsMap = { for (var ex in _programExercises) ex['name'] as String : ex['weight'] as double };
       
-      final squats = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('squat')).toList();
-      final benches = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('bench')).toList();
-      final deadlifts = _programExercises.where((e) => e['name'].toString().toLowerCase().contains('deadlift')).toList();
-      final others = _programExercises.where((e) => !e['name'].toString().toLowerCase().contains('squat') && !e['name'].toString().toLowerCase().contains('bench') && !e['name'].toString().toLowerCase().contains('deadlift')).toList();
+      final squats = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('squat') || name.contains('スクワット');
+      }).toList();
+      final benches = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('bench') || name.contains('ベンチプレス');
+      }).toList();
+      final deadlifts = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        return name.contains('deadlift') || name.contains('デッドリフト');
+      }).toList();
+      final others = _programExercises.where((e) {
+        final name = e['name'].toString().toLowerCase();
+        final isMain = name.contains('squat') || name.contains('スクワット') ||
+                       name.contains('bench') || name.contains('ベンチプレス') ||
+                       name.contains('deadlift') || name.contains('デッドリフト');
+        return !isMain;
+      }).toList();
 
       final sortedDays = List<int>.from(_selectedDays)..sort();
       if (sortedDays.isEmpty) {
@@ -3731,6 +4016,9 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     });
 
     try {
+      // 編集モードの場合は既存分を削除
+      await _cleanupExistingProgram('Smolov Jr.');
+
       debugPrint('=== Smolov Jr. 登録開始 ===');
       // 既存のSmolov Jr.スケジュールを削除しないように変更
 
@@ -3806,6 +4094,22 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     }
   }
 
+  // 既存の同一プログラムの未完了スケジュールを削除
+  Future<void> _cleanupExistingProgram(String menuTitle) async {
+    if (!_isEditing) return;
+    
+    final allSchedules = await _apiService.getSchedules();
+    final toDelete = allSchedules.where((s) => 
+      s.menuTitle == menuTitle && 
+      !s.isCompleted &&
+      (_targetSessionTitle == null || s.sessionTitle == _targetSessionTitle)
+    ).toList();
+    
+    for (var s in toDelete) {
+      await _apiService.deleteSchedule(s.id);
+    }
+  }
+
   // Toshiki Yamamoto プログラムを登録
   Future<void> _registerToshikiYamamotoProgram() async {
     final maxWeight = double.tryParse(_currentWeightController.text);
@@ -3833,6 +4137,9 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     });
 
     try {
+      // 編集モードの場合は既存分を削除
+      await _cleanupExistingProgram('Toshiki Yamamoto');
+
       final startDate = DateUtils.dateOnly(_startDate);
       final List<WorkoutSchedule> schedules = [];
 
@@ -3844,6 +4151,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
       int sessionsNeeded = 4 * sortedDays.length;
       List<DateTime> workoutDates = [];
       DateTime currentDate = startDate;
+
+      final exerciseName = _exerciseKindController.text.isNotEmpty 
+          ? _exerciseKindController.text 
+          : 'バックスクワット';
 
       while (workoutDates.length < sessionsNeeded) {
         if (sortedDays.contains(currentDate.weekday)) {
@@ -3858,7 +4169,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         final dayIndex = i % sortedDays.length;
 
         final workoutDetails =
-            'バックスクワット: 5〜10回 x 10セット目安\n重量範囲: ${lowWeight.toStringAsFixed(1)}kg 〜 ${highWeight.toStringAsFixed(1)}kg\n※フォーム崩れで即終了';
+            '$exerciseName: 5〜10回 x 10セット目安\n重量範囲: ${lowWeight.toStringAsFixed(1)}kg 〜 ${highWeight.toStringAsFixed(1)}kg\n※フォーム崩れで即終了';
 
         schedules.add(WorkoutSchedule(
           id: 0,
@@ -3867,7 +4178,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           menuTitle: 'Toshiki Yamamoto',
           menuDifficulty: 'Week ${week + 1} Day ${dayIndex + 1}',
           workoutDetails: workoutDetails,
-          sessionTitle: 'High Volume Squat',
+          sessionTitle: exerciseName,
         ));
       }
 
@@ -4614,7 +4925,10 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
         ),
         child: _isRegistering
             ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-            : const Text('スケジュールに登録', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            : Text(
+                _isEditing ? 'プログラムを更新' : 'スケジュールに登録',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+              ),
       ),
     );
   }
